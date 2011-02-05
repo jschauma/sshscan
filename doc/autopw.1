@@ -1,0 +1,99 @@
+.\"	This manual page was written by Jan Schaumann <jschauma@yahoo-inc.com>
+.Dd February 05, 2011
+.Dt AUTOPW 1
+.Os
+.Sh NAME
+.Nm autopw
+.Nd cache and re-inject passwords into other programs
+.Sh SYNOPSIS
+.Nm
+.Ar command
+.Sh DESRIPTION
+The
+.Nm
+utility will cache passwords and re-inject them whenever the given command
+requires them.
+That is, if
+.Ar command
+prompts for a password,
+.Nm
+will cache it and then provide that password the next time
+.Ar command
+asks for it.
+.Pp
+.Nm
+is frequently used to wrap commands invoking
+.Xr ssh 1
+repeatedly to avoid having the user monitor the command and re-supply
+their password when other forms of automation are not possible.
+.Sh PROMPTS MATCHED
+.Nm
+currently matches and distinguishes the following prompts:
+.Bl -bullet -compact -offset indent
+.It
+assword:
+.It
+Enter passphrase for
+.It
+Bad passphrase, try again
+.It
+Enter PEM pass phrase:
+.It
+Enter passphrase:
+.It
+y,n,(y/n)?
+.It
+?,??,q
+.It
+(yes/no)?
+.El
+.Pp
+In the latter examples,
+.Nm
+will be affirmative instead of supplying a password.
+.Sh EXAMPLES
+The following examples illustrate common usage of this tool.
+.Pp
+To invoke the command 'foo.sh' and have
+.Nm
+cache and re-inject any passwords prompted for, run
+.Bd -literal -offset indent
+autopw sh foo.sh
+.Ed
+.Sh CAVEATS
+Since
+.Nm
+must keep the password available in memory it is obviously advised against
+using this tool on shared hosts.
+.Pp
+You should only invoke commands that you actually trust --
+.Nm
+will only respond to specific patterns, and any program that prompts one
+of the strings
+.Nm
+is looking for will be supplied with the given password.
+This is particularly concerning when executing commands on a remote,
+possibly untrusted host.
+.Pp
+.Nm
+does not play very well with multiple levels of pseudo-terminals (screen
+sessions, 'ssh -t' etc.) and may at times print the cleartext password to
+the terminal.
+.Pp
+.Nm
+invokes
+.Xr perl 1 Ns 's
+\'pack/unpack' function for each password provided/injected.
+This can become a performance-impacting limitation.
+.Sh SEE ALSO
+.Xr expect 1 ,
+.Xr perl 1
+.Sh HISTORY
+The
+.Nm
+utility was originally written at Yahoo! Inc.
+It not being terribly original or clever, there appeared a number of
+variations.
+This variant is bundled with the
+.Xr scanmaster 1
+scripts for convenience.
