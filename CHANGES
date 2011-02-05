@@ -1,3 +1,6 @@
+Version 3.1.4.1 (2011-02-05)
+ * add autopw password injector
+
 Version 3.1.4 (2011-01-29)
  * aggregator scripts should be passed date the scan was
    started
