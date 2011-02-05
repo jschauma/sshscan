@@ -1,0 +1,155 @@
+.\"	This manual page was originally written by Jan Schaumann
+.\"	<jschauma@yahoo-inc.com> in May 2009.
+.Dd January 28, 2011
+.Dt SCANSLAVE 1
+.Os
+.Sh NAME
+.Nm scanslave
+.Nd invoke scanhosts on a scanning node
+.Sh SYNOPSIS
+.Nm
+.Op Fl Hh
+.Op Fl A Ar authmode
+.Op Fl d Ar dir
+.Op Fl n Ar N
+.Op Fl p Ar post
+.Op Fl r Ar remote
+.Ar scan
+.Ar chunkfile
+.Op Ar -- scanhost-args
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the "scanmaster" suite of scripts.
+It represents the portion of the process that runs on each scanning node
+and invokes
+.Xr scanhosts 1 .
+It takes as input the name of a scan and the so-called chunkfile
+containing the subset of hosts this scanning node should work on.
+.Pp
+.Nm
+supports the following command-line options:
+.Bl -tag -width A_authmode_
+.It Fl A Ar authmode
+Specify the authentication mode.
+Valid options are "all", "password" and "pubkey".
+This is passed on to the
+.Xr scanshosts 1
+command.
+.It Fl H
+Do not use the headless user for ssh connections.
+.It Fl d Ar dir
+The directory under which
+.Nm
+should create all output.
+Preferably this is on an NFS share amongst all scanning nodes, though this
+is not a technical requirement (it just makes postprocessing of the scan
+results an order of magnitude easier).
+If not specified, defaults to "/mnt/scanmaster".
+.It Fl n Ar N
+The number of jobs
+.Xr scanhosts 1
+should execute via its
+.Fl n
+flag.
+If not specified, defaults to 175.
+.It Fl p Ar post
+The location of the script to be passed to
+.Xr scanhosts 1
+as the post-processing script.
+If not specified, defaults to "./post.chunk.sh".
+.It Fl r Ar remote
+The location of the script to be passed to
+.Xr scanhosts 1
+as the script to execute on the remote hosts.
+If not specified, defaults to "./remote.sh".
+.El
+.Pp
+It furthermore takes two mandatory arguments:
+.Bl -tag -width chunkfile_
+.It scan
+The name of the scan.
+This name is used in a number of places to generate output directories and
+files.
+.It chunkfile
+The path to the file containing the hostnames to be scanned.
+.El
+.Pp
+Any additional arguments are passed on to
+.Xr scanhosts 1 .
+However, since
+.Nm
+already uses the following flags, they should not be provided as this may
+lead to undefined results:
+.Fl n ,
+.Fl f ,
+.Fl o ,
+.Fl s ,
+.Fl p ,
+.Fl r .
+.Sh DETAILS
+Upon invocation,
+.Nm
+sets a few variables based on the environment (see below).
+It then starts an
+.Xr ssh-agent 1
+and invokes
+.Xr ssh-add 1 ,
+passing the value of the environment variable SSH_ADD_FLAGS.
+Next, it creates the output directories in the preferably shared location,
+adds a crontab entry for
+.Xr tkill 1
+and eventually kicks off
+.Xr scanhosts 1
+via
+.Xr autopw 1 .
+When the scanhosts process has terminated, the ssh-agent is killed and the
+crontab entries removed.
+.Sh EXAMPLES
+The following examples illustrate common usage of this tool.
+.Pp
+To run a scan named "scan1", reading a list of hosts to scan from the file
+"/tmp/input.list" with the script "remote.sh" from the current working
+directory to be executed and the script "../post.chunk.sh" used as a
+per-chunk post script:
+.Bd -literal -offset indent
+scanslave -r ./remote.sh -p ../post.chunk.sh \\
+	scan1 /tmp/input.list
+.Ed
+.Pp
+To run the same scan but pass the flags "-I" and "-S" to
+.Xr scanhosts 1
+(which is useful when connecting to hosts that are reached via a tunnel,
+such as vault hosts):
+.Bd -literal -offset indent
+scanslave -r ./remote.sh -p ../post.chunk.sh \\
+	scan1 /tmp/input.list -- -I -S
+.Ed
+.Sh ENVIRONMENT
+.Nm
+honors the following environment variables:
+.Bl -tag -width SSH_ADD_FLAGS_
+.It SSH_ADD_FLAGS
+Flags to be passed to
+.Xr ssh-add 1 .
+This allows the user to specify custom keys to be added.
+.It TMPDIR
+The location of a temporary directory.
+If not specified, defaults to "/tmp".
+.El
+.Sh SEE ALSO
+.Xr autopw 1 ,
+.Xr checkhosts 1 ,
+.Xr scanhosts 1 ,
+.Xr ssh-agent 1 ,
+.Xr ssh-add 1 ,
+.Xr tkill 1
+.Sh HISTORY
+The
+.Nm
+utility was originally written by
+.An Jan Schaumann
+.Aq jschauma@yahoo-inc.com
+in July 2007 as "cmd.chunk".
+.Sh BUGS
+Please report bugs and feature requests to the author.

@@ -1,0 +1,81 @@
+Version 3.1.4 (2011-01-29)
+ * aggregator scripts should be passed date the scan was
+   started
+ * don't use possibly PREFIX variable in the generic aggregator -- it is
+   set in the scanmaster already
+
+Version 3.1.3 (2011-01-28)
+ * remove hardcoded references users, keys, hostnames,
+   pathnames etc.
+
+Version 3.1.2 (2011-01-22)
+ * ensure all output is collected in aggregator
+
+Version 3.1.1 (2011-01-19)
+ * let the aggregator also collect hosts_exit_* files
+
+Version 3.1.0 (2010-12-11)
+ * allow use to specify password-only, pubkey-only or
+   either-or via -A authmode; allow user to set SSHOPTS in environment
+ * allow user to set SSH_ADD_OPTS to influence ssh-add(1) behaviour
+ * allow user to set SCAN_ENV to influence all scanslave(1) processes
+
+Version 3.0.0 (2010-11-23)
+ * use a headless user by default
+
+Version 2.3.3 (2010-08-23)
+ * add generic wrapper scripts
+
+Version 2.3.2 (2010-08-12)
+ * if input has too few lines, don't try to split
+
+Version 2.3.1 (2010-08-04)
+ * invoke tkill every minute; otherwise a hung job will be terminated only
+   after 10 minutes (worst case)
+ * try to kill a possibly running ssh-agent when all is said and done
+ * tkill all processes running for longer than 120 seconds
+
+Version 2.3.0 (2010-07-21)
+ * let scanslave start an ssh-agent;
+   change protocol order to 2,1: not all hosts have an sshv1 key, so
+   attempting sshv1 first with a key and failing will end the attempts
+ * explicitly disable agent forwarding when connecting to the target hosts
+
+Version 2.2.2 (2009-11-07)
+ * remove slave status file after it finished
+
+Version 2.2.1 (2009-11-07)
+ * fix syntax error introduced in 2.2
+
+Version 2.2 (2009-11-07)
+ * add suggestion for a wrapper if aggregator args aren't
+   sufficiently flexible
+ * offer a way to show what slaves are still working (done
+   by way of SIGINFO)
+ * correct use of ssh agent forwarding
+
+Version 2.1 (2009-09-14)
+ * explicitly set StrictHostKeyChecking=no
+ * don't interpret '*' as a filename if not enough hosts
+   are given on input to actually create a split
+ * don't require optional files/arguments
+ * clarify that a number of scripts passed to scanmaster
+   are passed through to all scanslaves
+
+Version 2.0 (2009-08-02)
+ * use , as OFS
+
+Version 1.1 (2009-08-02)
+ * make remote exit codes useful
+ * add examples to scanslave and scanmaster manpages
+ * let scanmaster pass additional flags to scanslave
+
+Version 1.0 (2009-05-18)
+ * run the pre-script before checking for existence of other given files,
+   since the pre-script might generate some of them
+ * don't invoke an ssh-agent; if users want to use an
+   agent, they need to start it on their desktop and forward it
+   (change in behaviour, so bumping major)
+
+Version 0.1 (2009-05-07)
+ * Initial packaged version

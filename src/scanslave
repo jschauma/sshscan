@@ -1,0 +1,207 @@
+#! /bin/sh
+#
+# Copyright (c) 2008,2009,2010,2011 Yahoo! Inc.
+# All rights reserved.
+#
+# Originally written by Jan Schaumann <jschauma@yahoo-inc.com> in July 2007.
+#
+# Redistribution and use of this software in source and binary forms,
+# with or without modification, are permitted provided that the following
+# conditions are met:
+#
+# * Redistributions of source code must retain the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer in the documentation and/or other
+#   materials provided with the distribution.
+#
+# * Neither the name of Yahoo! Inc. nor the names of its
+#   contributors may be used to endorse or promote products
+#   derived from this software without specific prior
+#   written permission of Yahoo! Inc.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+# IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+# PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# This script is part of the "scanmaster" suite of scripts.  It represents
+# the portion of the process that runs on each scanning node and invokes
+# the scanhosts command.  It takes as input the name of a scan and the
+# so-called chunkfile containing the subset of hosts this scanning node
+# should work on.
+#
+# See scanslave(1) for details.
+
+#set -eu
+
+AUTHMODE="pubkey"
+NUM=175
+DIR="/mnt/scanmaster"
+NO_HEADLESS_FLAG=""
+PROGNAME="${0##*/}"
+POST="./post.chunk.sh"
+REMOTE="./remote.sh"
+TDIR="${TMPDIR:-"/tmp"}"
+
+DATE=$(date +%Y%m%d%H%M)
+OUTDIR=""
+
+# set further below
+PREFIX=""
+
+###
+### Subroutines
+###
+
+# function : postScan
+# purpose  : run anything needed after a scan has completed
+# inputs   : none
+
+postScan() {
+	local tmpct=$(mktemp ${TDIR}/cr.$$.XXXX)
+
+	date > ${OUTDIR}/.done
+	rm ${OUTDIR}/.slave
+
+	crontab -l | sed -e "/tkill -C '.checkhosts-s/d" >${tmpct}
+	crontab ${tmpct}
+	rm ${tmpct}
+
+	if [ -n "${SSH_AGENT_PID}" ]; then
+		kill "${SSH_AGENT_PID}"
+	fi
+}
+
+
+# function : preScan
+# purpose  : run anything needed before we kick off the scan
+# inputs   : none
+
+preScan() {
+	local tmpct=$(mktemp ${TDIR}/cr.$$.XXXX)
+
+	OUTDIR="${PREFIX}/${SCAN}/${DATE}.${CHUNKFILE##*/}"
+
+	mkdir -p ${OUTDIR} || exit 1
+	hostname > ${OUTDIR}/.slave
+
+	crontab -l >${tmpct}
+	echo "* * * * * tkill -C '.checkhosts-ssh' -t 60" >> ${tmpct}
+	echo "* * * * * tkill -C '.checkhosts-scp' -t 60" >> ${tmpct}
+	crontab ${tmpct}
+	rm ${tmpct}
+
+	if [ x"${NO_HEADLESS_FLAG}" = x"-H" ] && [ x"${AUTHMODE}" != x"password" ]; then
+		eval $(ssh-agent)
+		ssh-add ${SSH_ADD_FLAGS}
+	fi
+}
+
+# function : usage
+# purpose  : print usage
+# inputs   : none
+
+usage() {
+	cat <<EOH
+Usage: ${PROGNAME} [-Hh] [-A authmode] [-d dir] [-n N] [-p post] [-r remote] scan chunkfile
+       -A authmode  specify ssh authentication mode
+       -H           do not use the headless user for ssh connections
+       -d dir       the directory under which to create all output
+       -h           print this help and exit
+       -n N         the number of jobs scanhosts(1) should execute
+       -p post      the location of the per-scan post-processing script
+       -r remote    the location of the remote script
+EOH
+}
+
+
+###
+### Main
+###
+
+while getopts 'A:Hhd:n:p:r:' opt; do
+        case ${opt} in
+		A)
+			AUTHMODE="${OPTARG}"
+		;;
+		H)
+			NO_HEADLESS_FLAG="-H"
+		;;
+		d)
+			DIR=${OPTARG}
+		;;
+		h|\?)
+			usage
+			exit 0
+			# NOTREACHED
+		;;
+		n)
+			NUM=${OPTARG}
+		;;
+		p)
+			POST="${OPTARG}"
+			if [ ! -f "${POST}" ]; then
+				echo "${PROGNAME}: No such file: ${POST}" >&2
+				exit 1;
+				# NOTREACHED
+			fi
+		;;
+		r)
+			REMOTE="${OPTARG}"
+			if [ ! -f "${REMOTE}" ]; then
+				echo "${PROGNAME}: No such file: ${REMOTE}" >&2
+				exit 1;
+				# NOTREACHED
+			fi
+		;;
+		*)
+			usage
+			exit 1
+			# NOTREACHED
+		;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+if [ $# -lt 2 ]; then
+	usage
+	exit 1
+	# NOTREACHED
+fi
+
+SCAN=${1}
+CHUNKFILE=${2}
+shift
+shift
+
+if [ x"${1}" = x"--" ]; then
+	shift
+fi
+
+PREFIX="${DIR}/chunked"
+
+preScan
+
+AUTOPW=""
+if [ x"${NO_HEADLESS_FLAG}" = x"-H" ]; then
+	AUTOPW="autopw"
+fi
+
+${AUTOPW} scanhosts							\
+	$@								\
+	-A ${AUTHMODE} -n ${NUM}					\
+	-f ${CHUNKFILE} -o ${OUTDIR} -s ${DATE} -p ${POST}		\
+	-r ${REMOTE} ${NO_HEADLESS_FLAG}
+
+postScan

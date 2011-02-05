@@ -1,0 +1,140 @@
+.\"	This manual page was originally written by Jan Schaumann
+.\"	<jschauma@yahoo-inc.com> in February 2007.
+.Dd December 11, 2010
+.Dt SCANHOSTS 1
+.Os
+.Sh NAME
+.Nm scanhosts
+.Nd run checkhosts against a large number of hosts
+.Sh SYNOPSIS
+.Nm
+.Op Fl BHIPSh
+.Op Fl A Ar authmode
+.Op Fl n Ar num
+.Op Fl o Ar dir
+.Op Fl p Ar script
+.Op Fl s Ar suffix
+.Fl f Ar file
+.Fl r Ar script
+.Sh DESCRIPTION
+The
+.Nm
+utility is used to run
+.Xr checkhosts 1
+against a large number of hosts.
+It is normally invoked via
+.Xr autopw 1
+by
+.Xr scanslave 1 .
+It splits the input and then invokes
+.Xr checkhosts 1
+on the individual files in the background, eventually waiting for them all to
+complete.
+It then invokes the optionally provided post-processing command, passing it the
+name of the output directory as the single argument.
+.Pp
+The following options are supported:
+.Bl -tag -width A_authmode_
+.It Fl A Ar authmode
+Specify the authentication mode.
+Valid options are "all", "password" and "pubkey".
+This is passed on to the
+.Xr checkhosts 1
+command.
+.It Fl B
+Do not background
+.Xr checkhosts 1 Ns .
+This option is required if the command run on the remote host invokes
+.Xr sudo 8
+(or does any other interactive prompting) and will necessarily result in a
+significant performance decrease, since jobs no longer are executed in
+parallel but sequentially.
+.It Fl H
+Do not use the headless user for ssh connections.
+This is passed on to the
+.Xr checkhosts 1
+command.
+.It Fl I
+Do not use IP addresses to ssh to.
+This is passed on to the
+.Xr checkhosts 1
+command.
+.It Fl P
+Do not try to ping the hosts.
+This is passed on to the
+.Xr checkhosts 1
+command.
+.It Fl S
+Do not check if sshd is listening on port 22 on the hosts.
+This is passed on to the
+.Xr checkhosts 1
+command.
+.It Fl f Ar file
+Take input from this file.
+Multiple
+.Fl f Ar file
+may be given.
+The format of the file is exactly one host per line.
+Lines starting with a # are treated as comments and ignored until the end of
+the line.
+.It Fl h
+Print a usage message and exit.
+.It Fl n Ar num
+Split the input into this many files and thus run
+.Ar num
+instances of
+.Xr checkhosts 1
+in parallel.
+.It Fl o Ar dir
+Put the output files into
+.Ar dir .
+Per default, output is generated in TMPDIR.
+.It Fl p Ar cmd
+Invoke the specified command for post-processing of the output.
+This command is passed as a single argument the directory where the output was
+collected in.
+.It Fl r Ar script
+Specify the file that contains the script to run on the remote side.
+Passed through to
+.Xr checkhosts 1 .
+.It Fl s Ar suffix
+Use given suffix instead of default date for all output.
+.El
+.Sh OUTPUT
+Output is generated in the directory "output" under the directory specified
+via
+.Fl o Ar dir .
+In that directory, N subdirectories will be created (where N is the number of
+files the input was split into), into which the
+.Xr checkhosts 1
+instance will generate output.
+.Sh EXAMPLES
+The following examples illustrate common usage of this tool.
+.Pp
+This runs the scans without checking if a host pings, reads input from the
+file /tmp/input, splits the input into files of 20 lines each and puts the
+output into the directory ./output/20070227 under the current working
+directory:
+.Pp
+.Bd -literal -offset indent
+$ autopw scanhosts -P -n 20 -f /tmp/input -o ./output/20070227 \\
+	-r /tmp/remote.sh
+.Ed
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr autopw 1 ,
+.Xr checkhosts 1 ,
+.Xr scanslave 1 ,
+.Xr scanmaster 1
+.Sh HISTORY
+The
+.Nm
+utility was originally written by
+.An Jan Schaumann
+.Aq jschauma@yahoo-inc.com
+in January 2007.
+It's original task was to check hosts if they were able to deal with the new
+Daylight Saving Time instituted in the USA in 2007.
+.Sh BUGS
+Please reports bugs or feature requests to the author.

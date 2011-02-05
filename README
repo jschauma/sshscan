@@ -1,0 +1,12 @@
+scanmaster is a set of scripts that allow you to ssh to a very large
+number of hosts in parallel to run an arbitrary script on the remote side.
+It works best if the scans can take advantage of a set of scanslave nodes
+with access to shared NFS space, though that is not a hard requirement.
+
+scanmaster was initially written January 2007 by Jan Schaumann while
+working at Yahoo! Inc. Yahoo! open sourced the tool in the hopes that it
+will be useful to other people -- unless otherwise noted, all files are
+released under the terms of a 3-clause BSD license as noted in the file
+LICENSE.
+
+http://www.netmeister.org/apps/scanmaster/

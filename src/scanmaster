@@ -1,0 +1,342 @@
+#!/bin/sh
+#
+# Copyright (c) 2007,2008,2009,2010,2011 Yahoo! Inc.
+# All rights reserved.
+#
+# Originally written by Jan Schaumann <jschauma@yahoo-inc.com> in March 2007.
+#
+# Redistribution and use of this software in source and binary forms,
+# with or without modification, are permitted provided that the following
+# conditions are met:
+#
+# * Redistributions of source code must retain the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer in the documentation and/or other
+#   materials provided with the distribution.
+#
+# * Neither the name of Yahoo! Inc. nor the names of its
+#   contributors may be used to endorse or promote products
+#   derived from this software without specific prior
+#   written permission of Yahoo! Inc.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+# IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+# PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# This script is part of the "scanmaster" suite of scripts.  It is the
+# primary invoking command and hence named the same.  It represents the
+# portion of the process that farms a scan job out to a number of scanning
+# nodes.
+#
+# See scanmaster(1) for details.
+
+#set -eu
+
+###
+### Globals
+###
+
+AGGREGATOR=""
+AUTHMODE="pubkey"
+FULLDATE=$(date +%Y%m%d%H%M)
+DATE=$(date +%Y%m%d)
+DIR="/mnt/scanmaster"
+INPUT=""
+JOBS=""
+NAME=""
+NO_HEADLESS_FLAG=""
+NUM_HOSTS=
+PASSTHROUGH=""
+POST=""
+POSTFILE=""
+PROGNAME="${0##*/}"
+PRE=""
+REMOTE_SCRIPT=""
+WHOSTS="/usr/local/share/scanmaster/slavenodes"
+
+# set in prescanTasks
+PREFIX=""
+
+###
+### Subroutines
+###
+
+# function : farmOutJobs
+# purpose  : set up a screenrc on each of our worker hosts, then invoke it
+#            note: user needs to detach from each host's screen session
+# inputs   : none
+
+farmOutJobs() {
+	local count=1
+
+	local goners="${HOME}/.screenrc.scanslave"
+	local scanslave="scanslave -A ${AUTHMODE} ${NO_HEADLESS_FLAG} -d ${DIR} -r ${REMOTE_SCRIPT} ${POST} ${JOBS}"
+	local cmd detach host file chunkfile
+
+	if [ x"${NO_HEADLESS_FLAG}" = x"-H" ]; then
+		detach=""
+	else
+		detach="-dm"
+	fi
+
+	cd ${PREFIX}/input/${FULLDATE}
+
+	for file in *; do
+		if [ x"${file}"x = 'x*x' ]; then
+			# nothing to do, no files found in directory
+			break
+		fi
+		host=$( echo ${count}p | ed -s ${WHOSTS})
+		chunkfile="${PREFIX}/input/${FULLDATE}/${file}"
+		cmd="${scanslave} ${NAME} ${chunkfile} ${PASSTHROUGH} && rm -f ${goners}"
+		ssh ${host} "echo \"screen sh -c \\\"${cmd}\\\"\" > ~/.screenrc.scanslave"
+		ssh -t ${host} "env ${SCAN_ENV} screen ${detach} -c ~/.screenrc.scanslave -e^Ww && sleep 1"
+		count=$(( ${count} + 1 ))
+	done
+}
+
+
+# function : finishTasks
+# purpose  : clean up, invoke any optional aggregator scripts
+# inputs   : none
+
+finishTasks() {
+
+	date > ${PREFIX}/ended
+
+	if [ -n "${AGGREGATOR}" ]; then
+		${AGGREGATOR} ${NAME} ${INPUT} ${DATE}
+	fi
+	echo "Done."
+}
+
+# function : prepChunks
+# purpose  : split the input into chunks as needed
+# inputs   : none
+
+prepChunks() {
+
+	local num_in
+
+	local first last lines
+
+	local chunkdir="${PREFIX}/input/${FULLDATE}"
+
+	if [ ${NUM_HOSTS} -lt 2 ]; then
+		echo "Need more than ${num_in} hosts.  Bailing out..." >&2
+		exit
+	fi
+
+	cd ${chunkdir}
+
+	num_in=$(wc -l <${INPUT})
+	lines=$(( ${num_in}/${NUM_HOSTS} ))
+
+	if [ ${lines} -gt 0 ]; then
+		split -l ${lines} ${INPUT}
+		last=$(ls | awk -v N="${NUM_HOSTS}" '{ if (FNR > N) { print }}')
+		first=$(ls | head -1)
+		if [ -n "${last}" ]; then
+			cat ${last} >> ${first} && rm ${last}
+		fi
+	else
+		# too little input to split, just copy the file into place
+		cp ${INPUT} .
+	fi
+}
+
+
+# function : prescanTasks
+# purpose  : run any pre- script, verify all given files exist,
+#            clean up old gunk, create directories as needed
+# inputs   : none
+
+prescanTasks() {
+	local file var
+
+	if [ -n "${PRE}" ]; then
+		${PRE} ${NAME}
+	fi
+
+	for file in "${INPUT}" "${REMOTE_SCRIPT}" "${WHOSTS}"; do
+		if [ ! -f "${file}" ]; then
+			echo "${PROGNAME}: No such file: ${file}" >&2
+			exit 1;
+			# NOTREACHED
+		fi
+	done
+
+	# optional arguments
+	for var in "AGGREGATOR" "POSTFILE"; do
+		file=$(eval echo \$${var})
+		if [ -n "${file}" ] && [ ! -f "${file}" ]; then
+			echo "${PROGNAME}: No such file: ${file}" >&2
+			exit 1;
+			# NOTREACHED
+		fi
+	done
+
+	PREFIX="${DIR}/chunked/${NAME}"
+
+	rm -fr ${PREFIX}/*
+	mkdir -p ${PREFIX}/input/${FULLDATE} || exit 1
+
+	date > ${PREFIX}/started
+
+	NUM_HOSTS=$(wc -l <${WHOSTS})
+}
+
+# function : status
+# purpose  : print out the names of the slaves still working
+# inputs   : none; called when SIGINFO is received
+# returns  : nothing; prints to stdout the hostnames of all slaves still
+#            working
+
+status() {
+	find ${PREFIX}/* -maxdepth 2 -name '.slave' -exec cat {} \; 2>/dev/null
+}
+
+
+# function : usage
+# purpose  : print usage
+# inputs   : none
+
+usage() {
+	cat <<EOH
+Usage: ${PROGNAME} [-Hh] [-A authmode] [-a aggregator] [-c post-chunk] [-d dir]
+                   [-j jobs] [-p pre] [-w workers] -i input -n name -r remote
+                   [-- scanslave-passthrough-args]
+       -A authmode    specify ssh authentication mode
+       -H             do not use the headless user for ssh connections
+       -a aggregator  specify a script to aggregate all results
+       -d dir         specify a shared directory
+       -h             print this message and exit
+       -i input       specify the file containing the hostlist
+       -j jobs        specify the number of jobs scanhosts(1) should run
+                      (passed on to scanslave(1))
+       -n name        specify the name of this scan
+       -w workers     specify a file containing a list of worker hosts
+       -p pre         specify a script to run before doing anything else
+       -r remote      specify the script to execute on all target hosts
+EOH
+}
+
+
+# function : waitForAll
+# purpose  : wait for all screen sessions on all hosts to complete by way
+#            of counting "done" files that each finished job drops into
+#            the well-known directory
+# inputs   : none
+
+waitForAll() {
+	local count time
+
+	while [ 1 ]; do
+		count=$(find ${PREFIX}/* -maxdepth 2 -name '.done' -print 2>/dev/null | wc -l)
+		time=$(date +%T)
+		echo -n ${time}: ${count} /${NUM_HOSTS} done
+		if [ ${count} -eq ${NUM_HOSTS} ]; then
+			echo
+			break
+		fi
+		echo " - waiting..."
+		# sleep in intervals to give SIGINFO a chance to be caught
+		for n in 1 2 3 4 5 6; do
+			sleep 10
+		done
+	done
+}
+
+
+###
+### Main
+###
+
+trap status INFO
+
+while getopts 'A:Ha:c:d:hi:j:n:p:r:w:' opt; do
+        case ${opt} in
+		A)
+			AUTHMODE="${OPTARG}"
+		;;
+		H)
+			NO_HEADLESS_FLAG="-H"
+		;;
+		a)
+			AGGREGATOR="${OPTARG}"
+		;;
+		c)
+			POSTFILE="${OPTARG}"
+			POST="-p ${POSTFILE}"
+		;;
+		d)
+			DIR="${OPTARG}"
+		;;
+		h|\?)
+			usage
+			exit 0
+			# NOTREACHED
+		;;
+		i)
+			INPUT="${OPTARG}"
+		;;
+		j)
+			JOBS="-n ${OPTARG}"
+		;;
+		n)
+			NAME="${OPTARG}"
+		;;
+		p)
+			if [ ! -f "${OPTARG}" ]; then
+				echo "${PROGNAME}: No such file: ${OPTARG}" >&2
+				exit 1;
+				# NOTREACHED
+			fi
+			PRE="${OPTARG}"
+		;;
+		r)
+			REMOTE_SCRIPT="${OPTARG}"
+		;;
+		w)
+			WHOSTS="${OPTARG}"
+		;;
+		*)
+			usage
+			exit 1
+			# NOTREACHED
+		;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+if [ -z "${INPUT}" -o -z "${REMOTE_SCRIPT}" -o -z "${NAME}" ]; then
+	usage
+	exit 1
+	# NOTREACHED
+fi
+
+if [ x"${1}" = x"--" ]; then
+	shift
+fi
+
+if [ $# -gt 0 ]; then
+	PASSTHROUGH="-- $@"
+fi
+
+prescanTasks
+prepChunks
+farmOutJobs
+waitForAll
+finishTasks

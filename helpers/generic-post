@@ -1,0 +1,64 @@
+#! /bin/sh
+#
+# $Id: generic-post 1 2010-08-23 18:19:52Z jans $
+# $URL: svn+ssh://svn.corp.yahoo.com/yahoo/tools/scanmaster/scanner/branches/public/helpers/generic-post $
+#
+# Copyright (c) 2007 Yahoo! Inc.
+#
+# Originally written by Jan Schaumann <jans@yahoo-inc.com> in February 2009.
+#
+# Takes as argument the name of the output directory into which scanhosts
+# dumped its files.
+
+readonly DATE=$(date +%Y%m%d)
+
+DATE_DIR=
+OUTPUTDIR=
+
+# function : collect_output
+# purpose  : collects the output of all runs into a separate directory
+# inputs   : none, run_checkhosts has completed
+# returns  : none, output in 'full' directory
+
+collect_output () {
+	local readonly output_subdir="${OUTPUTDIR}/output/${DATE_DIR}"
+	local readonly input_files="${OUTPUTDIR}/output/input"
+	local readonly checked_files="${output_subdir}/*/hosts_checked"
+	local readonly ok_files="${output_subdir}/*/hosts_ok"
+	local readonly noping_files="${output_subdir}/*/hosts_noping"
+	local readonly nossh_files="${output_subdir}/*/hosts_nossh"
+	local readonly nosshd_files="${output_subdir}/*/hosts_nosshd"
+
+	local readonly outdir="${OUTPUTDIR}/final"
+
+	local readonly checked="${outdir}/checked"
+	local readonly input="${outdir}/input"
+	local readonly noping="${outdir}/noping"
+	local readonly nossh="${outdir}/nossh"
+	local readonly nosshd="${outdir}/nosshd"
+	local readonly ok="${outdir}/ok"
+
+	mkdir -p ${outdir}
+
+	cat ${ok_files} > ${ok}
+	sort -u ${input_files} > ${input}
+	sort -u ${checked_files} > ${checked}
+	sort -u ${noping_files} > ${noping}
+	sort -u ${nossh_files} > ${nossh}
+	sort -u ${nosshd_files} > ${nosshd}
+}
+
+###
+### Main
+###
+
+if [ $# -ne 1 -o ! -d ${1} ]; then
+	echo "Usage: ${0##*/} <directory>" >&2
+	exit 1
+	# NOTREACHED
+fi
+
+OUTPUTDIR="${1}"
+DATE_DIR="$(cd ${OUTPUTDIR}/output && ls -rt | tail -1)"
+
+collect_output

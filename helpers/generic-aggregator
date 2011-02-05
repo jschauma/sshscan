@@ -1,0 +1,61 @@
+#!/bin/sh
+#
+# $Id: generic-aggregator 72 2011-02-02 23:31:11Z jans $
+# $URL: svn+ssh://svn.corp.yahoo.com/yahoo/tools/scanmaster/scanner/branches/public/helpers/generic-aggregator $
+#
+# Copyright (c) 2008 Yahoo! Inc.
+#
+# Originally written by Jan Schaumann <jans@yahoo-inc.com> in July 2007.
+#
+# This script aggregates the data from a full scan into a directory under
+# the webservers docroot.  It takes two arguments, the one-word name of
+# the scan and the original input file.
+
+name=${1}
+input=${2}
+date=${3}
+suffix=$(echo ${input} | sed -e "s|.*/${name}-||")
+prefix=${BASEDIR:-/mnt/scanmaster}/chunked/${name}
+outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
+
+(
+	echo "Aggregating data..."
+	mkdir -p ${prefix}/final
+	cp ${input} ${prefix}/final/input
+
+	# mutli-line output in 'output', hostnames etc. in 'ok'
+	find ${prefix}/${date}* -name hosts_ok -exec cat {} \; | tee ${prefix}/final/output | grep , | sort -u > ${prefix}/final/ok
+
+	# cat */*/*/hosts_checked  might be too many files for the shell,
+	# so find(1) them instead.
+	find ${prefix}/${date}* \( ! -name 'hosts_ok' -and -name 'hosts_*' \) | while read filename; do
+		f="${filename##*/hosts_}"
+		cat ${filename} >> ${prefix}/final/${f}
+	done
+
+	mkdir -p ${outdir}
+	cp ${prefix}/final/* ${outdir}/
+
+	cd ${outdir}
+
+	wc -l * | egrep -v "(count|total|start|end)" > count
+
+	chmod -R a+rX,g+rw ${outdir}
+
+	mkdir -p ${prefix}/.old/${date}
+	mv ${prefix}/* ${prefix}/.old/${date}/
+)
+
+ended=$(date)
+host=$(hostname)
+
+echo "Sending mail..."
+
+/usr/sbin/sendmail -t <<EOM
+To: ${USER}
+From: ${USER}
+Subject: scanhosts ${name} results from ${date}
+
+${outdir}
+
+EOM

@@ -1,0 +1,189 @@
+.\"	This manual page was originally written by Jan Schaumann
+.\"	<jschauma@yahoo-inc.com> in May 2009.
+.Dd January 29, 2011
+.Dt SCANMASTER 1
+.Os
+.Sh NAME
+.Nm scanmaster
+.Nd farm scanning jobs out to hosts running scanslave
+.Sh SYNOPSIS
+.Nm
+.Op Fl Hh
+.Op Fl A Ar authmode
+.Op Fl a Ar aggregator
+.Op Fl c Ar post-chunk
+.Op Fl d Ar dir
+.Op Fl j Ar jobs
+.Op Fl p Ar pre
+.Op Fl w Ar workers
+.Fl i Ar input
+.Fl n Ar name
+.Fl r Ar remote
+.Op -- scanslave-passthrough-args
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the "scanmaster" suite of scripts.
+It is the primary invoking command and hence named the same.
+It represents the portion of the process that farms a scan job out to a
+number of scanning nodes, which in turn invoke
+.Xr scanslave 1 .
+.Pp
+.Nm
+supports the following command-line options:
+.Bl -tag -width _aggregator__
+.It Fl A Ar authmode
+Specify the authentication mode.
+Valid options are "all", "password" and "pubkey".
+This is passed on to the
+.Xr scanslave 1
+command.
+.It Fl H
+Do not use the headless user for ssh connections.
+.It Fl a Ar aggregator
+The path to a script to aggregate the results from all slaves.
+This script is run after all slaves have finished and it is passed as
+the first argument the name of the scan, as the second argument the
+path to the original input file and as the third argument the date
+(YYYYMMDD) that the scan was started.
+If you require more flexibility, you may wish to use a wrapper script that
+invokes
+.Nm
+without an aggregator script and the runs whatever other tools you have to
+post-process the data.
+.It Fl c Ar post-chunk
+The script each slave should execute after it's finished.
+As this flag is passed on to the
+.Xr scanslave 1
+invocations, the path needs to be one that all slave nodes can resolve.
+Using a script on an NFS share is a good solution to this problem.
+.It Fl d Ar dir
+The directory under which
+.Nm
+should create all output.
+Preferably this is on an NFS share amongst all scanning nodes, though this
+is not a technical requirement (it just makes postprocessing of the scan
+results an order of magnitude easier).
+Please note that if no NFS share is used, the location still needs to be
+the same for all slave nodes.
+If not specified, defaults to "/mnt/scanmaster".
+.It Fl h
+Print a short usage and exit.
+.It Fl i Ar input
+Specify the file containing the input list of hosts to scan.
+.It Fl j Ar jobs
+The number of jobs
+.Xr scanhosts 1
+should execute.
+This flag is passed on to
+.Xr scanslave 1 ;
+if not specified, use that tool's defaults.
+.It Fl n Ar name
+Specify the name of this scan.
+This name is used in a number of places during output file creation.
+.It Fl w Ar workers
+Specify the file containing the list of worker hosts to farm this job out
+to.
+If not specified, defaults to "/usr/local/share/scanmaster/slavenodes".
+.It Fl p Ar pre
+Specify the script to run before doing anything else.
+This script is invoked with the scan name as the single argument.
+.It Fl r Ar remote
+Specify the script to execute on all target hosts.
+As this flag is passed on to the
+.Xr scanslave 1
+invocations, the path needs to be one that all slave nodes can resolve.
+Using a script on an NFS share is a good solution to this problem.
+.El
+.Pp
+Any arguments given after a
+.Fl -
+will be treated as "scanslave pass-through" arguments.
+That is, they will be passed on to
+.Xr scanslave 1 ,
+with the
+.Fl -
+intact, meaning
+.Xr scanslave 1
+will further pass them through to other tools it may invoke.
+.Sh DETAILS
+Upon invocation,
+.Nm
+will first run the script given to the
+.Fl p
+flag (if any), passing it the name of the scan as the single argument.
+It then removes any files found under the shared directory for a scan by
+this name, creates a new sub directory (by date), and tries to set up the
+environment for the currently running (if any)
+.Xr ssh-agent 1 .
+Next, it splits the input file into N chunks, where N is the number of
+hosts found in the worker hosts file.
+After that, it will ssh to each worker host, create a screenrc file that
+will invoke
+.Xr scanslave 1
+with the appropriate options; it then invokes
+.Xr screen 1
+with a key-binding of
+.Ar ^Ww .
+The user needs to detach from each host's screen session in order to let
+.Nm
+move on to the next host.
+.Pp
+After all hosts have started a screen session,
+.Nm
+will wait for the scanning nodes to complete their respective jobs.
+Once every minute,
+.Nm
+will look for the existence of a file called ".done" which is created in
+the well-defined shared location by
+.Xr scanslave 1 .
+When it finds all ".done" files, it will execute the script given via the
+.Ar a
+flag (if any), passing it the name of the scan as the first
+argument and the location of the original input file as the second
+argument.
+.Sh ENVIRONMENT
+.Nm
+uses the following environment variables:
+.Bl -tag -width SCAN_ENV_
+.It SCAN_ENV
+.Nm
+invokes
+.Xr scanslave 1
+by calling
+.Bd -literal -offset indent
+env ${SCAN_ENV} scanslave other-args
+.Ed
+This allows the user to pass anything into the environment of the invoked
+processes on the scanslave hosts.
+Obviously, SCAN_ENV should then contain key=value pairs.
+.El
+.Sh EXAMPLES
+The following examples illustrate common usage of this tool.
+.Pp
+.Bd -literal -offset indent
+SCAN=info1
+PREFIX=/mnt/scanmaster/jschauma/${SCAN}
+scanmaster                                \\
+        -a ${PREFIX}/aggregator.sh        \\
+        -c ${PREFIX}/post.chunk.sh        \\
+        -i ${PREFIX}/files/${SCAN}-input  \\
+        -p ${PREFIX}/pre.sh               \\
+        -r ${PREFIX}/remote.sh            \\
+        -n ${SCAN}
+.Ed
+.Sh SEE ALSO
+.Xr autopw 1 ,
+.Xr checkhosts 1 ,
+.Xr scanhosts 1 ,
+.Xr scanslave 1 ,
+.Xr tkill 1
+.Sh HISTORY
+The
+.Nm
+utility was originally written by
+.An Jan Schaumann
+.Aq jschauma@yahoo-inc.com
+in July 2007 as "cmd.chunker".
+.Sh BUGS
+Please report bugs and feature requests to the author.

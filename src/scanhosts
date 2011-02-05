@@ -1,0 +1,287 @@
+#!/bin/sh
+#
+# Copyright (c) 2007,2008,2009,2010,2011 Yahoo! Inc.
+# All rights reserved.
+#
+# Originally written by Jan Schaumann <jschauma@yahoo-inc.com> in January
+# 2007.
+#
+# Redistribution and use of this software in source and binary forms,
+# with or without modification, are permitted provided that the following
+# conditions are met:
+#
+# * Redistributions of source code must retain the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer in the documentation and/or other
+#   materials provided with the distribution.
+#
+# * Neither the name of Yahoo! Inc. nor the names of its
+#   contributors may be used to endorse or promote products
+#   derived from this software without specific prior
+#   written permission of Yahoo! Inc.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+# IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+# PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# A program used to run 'checkhosts' against a large number of hosts.
+
+###
+### Globals
+###
+
+# set in init() or by getopts
+ALL_OUTPUT="${TMPDIR:-/tmp}"
+AUTHMODE="pubkey"
+BACKGROUND="&"
+BACKGROUND_FLAG="-b"
+NO_HEADLESS_FLAG=""
+IP_FLAG=""
+PING_FLAG=""
+SSHD_FLAG=""
+INPUTDIR=""
+INPUT_FILES=""
+NUM=40
+SCRIPT=""
+SUFFIX=""
+POST_CMD=""
+
+###
+### Subroutines
+###
+
+# function : usage
+# purpose  : print help message
+# inputs   : none
+# returns  : none
+
+usage () {
+	cat <<EOH
+Usage: autopw ${0##*/} [-BHIPSh] [-A authmode] [-n num] [-o dir]
+         [-p cmd] [-s suffix] -f file -r script
+  -A authmode  specify ssh authentication mode
+  -B           do not put checkhosts in the background
+  -H           do not let checkhosts use the headless user
+  -I           do not use IP address to ssh to
+  -P           do not try to ping hosts first
+  -S           do not check if sshd is listening on the hosts
+  -f file      take input from this file
+  -h           print this message and exit
+  -n num       split input into this many files
+  -o dir       collect output in <dir>
+  -p cmd       invoke the specified cmd for post-processing of the output
+               this command is passed as a single argument the directory where
+               the output was collected in
+  -r script    specify the file that contains the script to run on the remote side
+  -s suffix    use given suffix instead of default date for all output
+EOH
+}
+
+# function : init
+# purpose  : initialize variables, make directories etc.
+# inputs   : none
+# returns  : none
+
+init () {
+	local nada
+
+	if [ x"${NO_HEADLESS_FLAG}" = x"-H" ] && [ x"${AUTHMODE}" != x"pubkey" ]; then
+		# prompt for password early on to avoid waiting for user input
+		# down the line
+		if [ -t 0 ]; then
+			stty -echo
+			read -p "Password: " nada
+			echo
+			stty echo
+		fi
+	fi
+
+	if [ -z "${SUFFIX}" ]; then
+		SUFFIX="$(date +%Y%m%d)"
+	fi
+	INPUTDIR=${ALL_OUTPUT}/input/${SUFFIX}
+	OUTPUTDIR=${ALL_OUTPUT}/output
+
+	# remove any old directories in case a scan was interrupted and
+	# restarted so that we don't get duplicate input or append dupes
+	# to the output
+	rm -fr ${OUTPUTDIR} ${INPUTDIR}
+	mkdir -p ${OUTPUTDIR} ${INPUTDIR}
+}
+
+# function : prep_input_files
+# purpose  : collect input and split it into individual files
+# inputs   : none
+# returns  : nothing; input split into smaller files
+
+prep_input_files () {
+	local readonly input=${OUTPUTDIR}/input
+
+	local skip
+	local num_in lines
+
+	cat ${INPUT_FILES} > ${input}
+
+	num_in=$(wc -l <${input})
+	lines=$(( ${num_in}/${NUM} ))
+
+	if [ ${lines} -eq 0 ]; then
+		cat ${input} >> ${INPUTDIR}/xaa
+		return
+	fi
+
+	split -l ${lines} ${input} ${INPUTDIR}/ || exit 1
+
+	# Ugly, but since we can't tell split to split into exactly N
+	# files by line, we need to account for surplus.  If
+	# we're splitting into files with a small number of lines, then
+	# the first file might be significantly larger than the others,
+	# but so be it.  If we're splitting into files with a large number
+	# of lines, then the spillover should be small.
+
+	(
+		local first last
+		cd ${INPUTDIR}
+		spillover=$(ls | awk -v N="${NUM}" '{ if (FNR > N) { print }}')
+		last=$(ls | awk -v N="${NUM}" '{ if (FNR == N) { print }}')
+		if [ -n "${spillover}" ]; then
+			cat ${spillover} >> ${last} && rm ${spillover}
+		fi
+	)
+}
+
+# function : run_checkhosts
+# purpose  : invokes checkhosts in the background for each file found in
+#            the inputdir, then waits for all jobs
+# inputs   : none, input was split into separate files
+# returns  : none, checkhosts was run for all input
+
+run_checkhosts () {
+
+	cd ${ALL_OUTPUT} || exit 1
+
+	for file in ${INPUTDIR}/*; do
+		local readonly sufx=${file##*/}
+		local readonly dir=${OUTPUTDIR}/${SUFFIX}/${sufx}
+
+		if [ -s ${file} -a "${file##*/}" != "input" ]; then
+			mkdir -p ${dir}
+			eval checkhosts -A ${AUTHMODE} ${BACKGROUND_FLAG} ${IP_FLAG} \
+				${SSHD_FLAG} ${PING_FLAG} ${NO_HEADLESS_FLAG} \
+				-r ${SCRIPT} -o ${dir} -f ${file} >/dev/null ${BACKGROUND}
+		fi
+	done
+
+	# wait for _all_ jobs to finish
+	wait
+}
+
+# function : post_process
+# purpose  : invoke the provided script for post-processing
+# inputs   : the directory where output was generated
+# returns  : exit status of the invoked script
+
+post_process () {
+	if [ -n "${POST_CMD}" ]; then
+		${POST_CMD} "${ALL_OUTPUT}"
+	fi
+}
+
+# function : fullname
+# purpose  : determine the full absolute path for a given binary
+# inputs   : any pathname
+# returns  : the absolute path
+
+fullname () {
+	local readonly arg="${1}"
+	echo $(cd $(dirname ${arg}) && pwd -P)/$(basename ${arg})
+}
+
+###
+### Main
+###
+
+while getopts 'A:BHIPS?f:hn:o:p:r:s:' opt; do
+	case ${opt} in
+		A)
+			AUTHMODE="${OPTARG}"
+		;;
+		B)
+			BACKGROUND=""
+			BACKGROUND_FLAG=""
+		;;
+		H)
+			NO_HEADLESS_FLAG="-H"
+		;;
+		I)
+			IP_FLAG="-I"
+		;;
+		P)
+			PING_FLAG="-P"
+		;;
+		S)
+			SSHD_FLAG="-S"
+		;;
+		f)
+			INPUT_FILES="$(fullname ${OPTARG}) ${INPUT_FILES}"
+		;;
+		h|\?)
+			usage
+			exit 0
+			# NOTREACHED
+		;;
+		n)
+			NUM=${OPTARG}
+		;;
+		o)
+			if [ ! -d "${OPTARG}" ]; then
+				echo "Not a directory: ${OPTARG}"
+				exit 1
+				# NOTREACHED
+			fi
+			ALL_OUTPUT="$(fullname ${OPTARG})"
+		;;
+		p)
+			POST_CMD="$(fullname ${OPTARG})"
+		;;
+		r)
+			SCRIPT="$(fullname ${OPTARG})"
+		;;
+		s)
+			SUFFIX="${OPTARG}"
+		;;
+		*)
+			usage
+			exit 1
+			# NOTREACHED
+		;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+if [ $# -gt 0 -o -z "${INPUT_FILES}" -o -z "${SCRIPT}" ]; then
+	usage
+	exit 1
+	# NOTREACHED
+fi
+
+date > "${ALL_OUTPUT}/started"
+
+init
+prep_input_files
+run_checkhosts
+post_process
+
+date > "${ALL_OUTPUT}/ended"

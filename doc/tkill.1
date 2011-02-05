@@ -1,0 +1,67 @@
+.\"	This manual page was written by Jan Schaumann <jschauma@yahoo-inc.com>
+.Dd February 02, 2011
+.Dt TKILL 1
+.Os
+.Sh NAME
+.Nm tkill
+.Nd kill a process if it has been running for too long
+.Sh SYNOPSIS
+.Nm
+.Op Fl Phl
+.Op Fl t Ar timeout
+.Op Fl s Ar signal
+.Ns ( Ns Ar pid Ar ... | Fl C Ar cmd | Fl c Ar cmd Ns )
+.Sh DESRIPTION
+The
+.Nm
+utility kills a given process or process group if it has been running for
+longer than the specified time.
+.Pp
+The following options are supported:
+.Bl -tag -width t_timeout_
+.It Fl C Ar cmd
+Kill processes by name, not by process ID.
+If the given command is found to be a substring of any command in the
+process table, then those processes are killed.
+.It Fl P
+Kill all processes whose parent is the given pid.
+.It Fl c Ar cmd
+Kill processes by name, not by process ID.
+The given command must match exactly the command in the process table.
+.It Fl h
+Print a usage statement and exit.
+.It Fl l
+Print a list of valid signals and exit.
+.It Fl t Ar timeout
+Specify the timeout in seconds.
+If not specified, default to 300.
+.It Fl s Ar signal
+Kill with the given signal, which may be either numeric or the symbolic
+name of hte signal.
+If not specified, kill with the TERM signal.
+.El
+.Sh EXAMPLES
+The following examples illustrate common usage of this tool.
+.Pp
+To kill the processes with the process IDs 1234 1235 and 1236 if they have
+been running for longer than 500 seconds:
+.Bd -literal -offset indent
+tkill 1234 1235 1236
+.Ed
+.Pp
+To kill all the children of process ID 1234 if they have been running for
+longer than one hour:
+.Bd -literal -offset indent
+tkill -t 3600 -P 1234
+.Ed
+.Sh SEE ALSO
+.Xr kill 1
+.Sh HISTORY
+The
+.Nm
+utility was originally written by
+.An Jan Schaumann
+.Aq jschauma@yahoo-inc.com
+in July 2007.
+.Sh BUGS
+Please submit bug reports and feature requests to the author.

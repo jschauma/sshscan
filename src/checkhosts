@@ -1,0 +1,359 @@
+#!/bin/sh
+#
+# Copyright (c) 2007,2008,2009,2010,2011 Yahoo! Inc.
+# All rights reserved.
+#
+# Originally written by Jan Schaumann <jschauma@yahoo-inc.com> in January 2007.
+#
+# Redistribution and use of this software in source and binary forms,
+# with or without modification, are permitted provided that the following
+# conditions are met:
+#
+# * Redistributions of source code must retain the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above
+#   copyright notice, this list of conditions and the
+#   following disclaimer in the documentation and/or other
+#   materials provided with the distribution.
+#
+# * Neither the name of Yahoo! Inc. nor the names of its
+#   contributors may be used to endorse or promote products
+#   derived from this software without specific prior
+#   written permission of Yahoo! Inc.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+# IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+# TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+# PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#
+# This script takes as input a list of hosts and tries to ssh to them.
+# It generates as output a file containing the list of hosts that did not ping
+# in one file, a list of hosts that do not appear to be listening on port 22
+# in a second file, the list of hosts it was unable to ssh to in a third file
+# and the outputs of the command it was told to run in the fourth file.
+
+###
+### Globals
+###
+
+TDIR="${TMPDIR:-/tmp}"
+
+AUTHMODE="pubkey"
+BACKGROUND='no'
+HEADLESS='yes'
+INPUT_FILES=
+OUTPUT_DIR=${TDIR}
+SCRIPT="remote.sh"
+SSH_WRAPPER=".checkhosts-ssh"
+SCP_WRAPPER=".checkhosts-scp"
+
+CHECK_PING='yes'
+CHECK_SSHD='yes'
+HOSTNAMES_ONLY='no'
+
+###
+### Subroutines
+###
+
+# function : usage
+# purpose  : print a help message
+# usage    : usage
+# inputs   : none
+# outputs  : help message
+
+usage () {
+	eat <<EOF
+Usage: ${0##*/} [-HIPSbh] [-A authmode] [-o dir] [-r script] -f file
+  -A         Specify ssh authentication mode.
+  -H         Do not use a headless account.
+  -I         Do not use IP addresses.
+  -P         Do not try to ping the hosts.
+  -S         Do not check if sshd is running on the hosts.
+  -b         The script is run in the background.
+  -f file    Read list of hosts from file.
+  -h         Print this message and exit.
+  -o dir     Put output files into dir (default: TMPDIR).
+  -r script  Specify the file that contains the script to run on the remote side.
+EOF
+}
+
+# function : checkhost
+# purpose  : checks an individual host
+#            as such it performs:
+#            - a ping check
+#            - a check whether sshd is listening on port 22
+#            - tries to ssh to it and run uname on it
+# usage    : checkhost host
+# inputs   : a line consisting of a hostname and an optional second field
+#            assumed to be an IP address
+# outputs  : appends to the three output files
+
+checkhost () {
+	local input="${1}"
+	local host="${1%% *}"
+	local ip="${1##* }"
+	local target="${ip}"
+
+	local host_output substr rval
+	local outfile=${OUTFILE_OK}
+
+	local readonly remotefile="${TDIR}/scanhosts.${USER}.$$"
+	local readonly rcmd="bash ${remotefile} && rm -f ${remotefile}"
+
+	local remote_shell="bash -s"
+	local sshopts="-q
+				-o ForwardAgent=no
+				-o ClearAllForwardings=yes
+				-o StrictHostKeyChecking=no
+				-o UserKnownHostsFile=/dev/null
+				-o GlobalKnownHostsFile=/dev/null
+				-o Protocol=2,1"
+
+	case x"${AUTHMODE}" in
+		xall)
+			sshopts="${sshopts} -o PasswordAuthentication=yes
+				-o PubkeyAuthentication=yes"
+			;;
+		xpassword)
+			sshopts="${sshopts} -o PasswordAuthentication=yes
+				-o KbdInteractiveAuthentication=no
+				-o PubkeyAuthentication=no"
+			;;
+		xpubkey)
+			sshopts="${sshopts} -o PasswordAuthentication=no
+				-o KbdInteractiveAuthentication=no
+				-o PubkeyAuthentication=yes"
+			;;
+	esac
+
+	if [ "${HEADLESS}" = "yes" ]; then
+		sshopts="${sshopts} -o IdentitiesOnly=yes"
+		remote_shell=""
+	else
+		sshopts="${sshopts} -o NumberOfPasswordPrompts=1"
+	fi
+
+	echo "${input}" >> ${OUTFILE_CHECKED}
+
+	if [ "${HOSTNAMES_ONLY}" = "yes" -o "${host}" = "${ip}" ]; then
+		target="${host}"
+		ip=""
+	fi
+
+	if [ "${CHECK_PING}" = "yes" ]; then
+		ping -c 1 -i 1 -t 3 -q ${target} >/dev/null 2>&1 || {
+			echo ${input} >> ${OUTFILE_NOPING}
+			return 1
+			# NOTREACHED
+		}
+	fi
+
+	if [ "${CHECK_SSHD}" = "yes" ]; then
+		check_sshd ${target} || {
+			echo ${input} >> ${OUTFILE_NOSSHD}
+			return 1
+			# NOTREACHED
+		}
+	fi
+
+	if [ "${BACKGROUND}" = "no" ] && [ "${HEADLESS}" = "no" ]; then
+
+		${SCP_WRAPPER} ${sshopts} ${SSHOPTS} ${SCRIPT} ${target}:${remotefile}
+		if [ $? -gt 0 ]; then
+			echo ${input} >> ${OUTFILE_NOSSH}
+			return 1
+			# NOTREACHED
+		fi
+
+		host_output=$(${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${rcmd}")
+	else
+		host_output=$(cat ${SCRIPT} | ${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${remote_shell}")
+	fi
+
+	rval=$?
+
+	if [ ${rval} -eq 255 ]; then
+		echo ${input} >> ${OUTFILE_NOSSH}
+		return 1
+		# NOTREACHED
+	elif [ ${rval} -gt 0 ]; then
+		outfile="${OUTFILE_EXITCODE}_${rval}"
+	fi
+
+	echo "${host},${ip},${host_output}" | tr '' '\n' >> ${outfile}
+}
+
+# function : process_input_files
+# purpose  : work of the lines in all input files
+# usage    : process_input_files
+# inputs   : none, operates on global INPUT_FILES
+# outputs  : none
+
+process_input_files () {
+
+	local file
+
+	for file in ${INPUT_FILES}; do
+		if [ -r "${file}" ]; then
+			local readonly tmpf=$(mktemp ${TDIR}/checkhosts.$$.XXXXXX)
+			grep -v "^#" ${file} > ${tmpf}
+			oIFS=${IFS}
+			IFS='
+'
+			for line in $(cat ${tmpf}); do
+				IFS=${oIFS}
+				checkhost "${line}"
+			done
+			rm ${tmpf}
+		else
+			echo "Cannot read ${file}." >&2
+		fi
+	done
+}
+
+# function : check_sshd
+# purpose  : verify that ssh is listening on port 22 of the given host
+# inputs   : a hostname
+# returns  : 0 if the host is in fact listening on port 22, >0 otherwise
+
+check_sshd() {
+	local readonly host=${1}
+
+	local i
+	local readonly tmpfile=$(mktemp ${TDIR}/$$.XXXXXX)
+
+	( echo | nc $host 22 | grep -i ssh >${tmpfile}; ) &
+	pid=$!
+	i=0
+	while [ ${i} -lt 60 ]; do
+		kill -0 ${pid} >/dev/null 2>&1
+		if [ $? -ne 0 ]; then
+			break
+		fi
+		i=$(( ${i} + 1 ))
+		sleep 1
+	done
+	kill -9 ${pid} >/dev/null 2>&1
+	wait ${pid} >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		local ssh="$(cat ${tmpfile})"
+		rm -f ${tmpfile}
+		if [ -n "${ssh}" ]; then
+			return 0
+		fi
+	fi
+
+	rm -f ${tmpfile}
+	return 1
+}
+
+# function : wrap_ssh
+# purpose  : create a near no-op ssh wrapper so that the name of the
+#            wrapper appears in the process table and we can more easily
+#            identify the ssh processes related to this program
+# inputs   : none
+# returns  : nothing, creates a symlink pointing to ssh in the output
+#            directory, iff it doesn't already exist
+
+wrap_ssh() {
+
+	export PATH=${OUTPUT_DIR}:${PATH}
+	if [ -h "${OUTPUT_DIR}/${SSH_WRAPPER}" -a -h "${OUTPUT_DIR}/${SCP_WRAPPER}" ]; then
+		return
+	fi
+
+	ln -sf $(which ssh) ${OUTPUT_DIR}/${SSH_WRAPPER}
+	ln -sf $(which scp) ${OUTPUT_DIR}/${SCP_WRAPPER}
+}
+
+
+###
+### Main
+###
+
+main() {
+	while getopts 'A:HIPSbf:ho:r:' opt; do
+		case ${opt} in
+			A)
+				AUTHMODE="${OPTARG}"
+			;;
+			H)
+				HEADLESS='no'
+			;;
+			I)
+				HOSTNAMES_ONLY='yes'
+			;;
+			P)
+				CHECK_PING='no'
+			;;
+			S)
+				CHECK_SSHD='no'
+			;;
+			b)
+				BACKGROUND='yes'
+			;;
+			f)
+				INPUT_FILES="${INPUT_FILES} ${OPTARG}"
+			;;
+			h|\?)
+				usage
+				exit 0
+				# NOTREACHED
+			;;
+			o)
+				if [ ! -d ${OPTARG} ]; then
+					echo "Not a directory: ${OPTARG}."
+					exit 1
+					# NOTREACHED
+				fi
+				OUTPUT_DIR="${OPTARG}"
+			;;
+			r)
+				SCRIPT="${OPTARG}"
+			;;
+			*)
+				usage
+				exit 1
+				# NOTREACHED
+			;;
+		esac
+	done
+	shift $(($OPTIND - 1))
+
+	if [ -z "${INPUT_FILES}" -a $# -lt 1 ]; then
+		usage
+		exit 1
+		# NOTREACHED
+	fi
+
+	if [ ! -r ${SCRIPT} ]; then
+		echo "Unable to read script \"${SCRIPT}\"." >&2
+		exit 1
+		# NOTREACHED
+	fi
+
+	OUTFILE_CHECKED="${OUTPUT_DIR}/hosts_checked"
+	OUTFILE_EXITCODE="${OUTPUT_DIR}/hosts_exit"
+	OUTFILE_NOPING="${OUTPUT_DIR}/hosts_noping"
+	OUTFILE_NOSSH="${OUTPUT_DIR}/hosts_nossh"
+	OUTFILE_NOSSHD="${OUTPUT_DIR}/hosts_nosshd"
+	OUTFILE_OK="${OUTPUT_DIR}/hosts_ok"
+
+	wrap_ssh
+
+	process_input_files
+
+	return 0
+}
+
+main "$@"
