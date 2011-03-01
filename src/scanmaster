@@ -50,6 +50,7 @@
 
 AGGREGATOR=""
 AUTHMODE="pubkey"
+STARTDATE=$(date +%s)
 FULLDATE=$(date +%Y%m%d%H%M)
 DATE=$(date +%Y%m%d)
 DIR="/mnt/scanmaster"
@@ -241,7 +242,7 @@ EOH
 # inputs   : none
 
 waitForAll() {
-	local count time
+	local count diff minutes num_in now seconds time
 
 	while [ 1 ]; do
 		count=$(find ${PREFIX}/* -maxdepth 2 -name '.done' -print 2>/dev/null | wc -l)
@@ -257,6 +258,16 @@ waitForAll() {
 			sleep 10
 		done
 	done
+	now=$(date +%s)
+	diff=$(( ${now} - ${STARTDATE}))
+	minutes=0
+	seconds=${diff}
+	if [ ${diff} -gt 60 ]; then
+		minutes=$(( ${seconds} / 60 ))
+		seconds=$(( ${seconds} % 60 ))
+	fi
+	num_in=$(wc -l <${INPUT})
+	echo "$(date +%T): Scanned ${num_in} hosts in ${minutes} minutes and ${seconds} seconds."
 }
 
 
