@@ -1,8 +1,5 @@
 #! /bin/sh
 #
-# $Id: generic-post 1 2010-08-23 18:19:52Z jans $
-# $URL: svn+ssh://svn.corp.yahoo.com/yahoo/tools/scanmaster/scanner/branches/public/helpers/generic-post $
-#
 # Copyright (c) 2007 Yahoo! Inc.
 #
 # Originally written by Jan Schaumann <jans@yahoo-inc.com> in February 2009.
