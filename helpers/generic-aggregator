@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: generic-aggregator 72 2011-02-02 23:31:11Z jans $
+# $Id: generic-aggregator 106 2011-05-05 22:40:52Z jans $
 # $URL: svn+ssh://svn.corp.yahoo.com/yahoo/tools/scanmaster/scanner/branches/public/helpers/generic-aggregator $
 #
 # Copyright (c) 2008 Yahoo! Inc.
@@ -28,7 +28,7 @@ outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
 
 	# cat */*/*/hosts_checked  might be too many files for the shell,
 	# so find(1) them instead.
-	find ${prefix}/${date}* \( ! -name 'hosts_ok' -and -name 'hosts_*' \) | while read filename; do
+	find ${prefix}/${date}* \( ! -name 'hosts_ok' -and -name 'hosts_*' -or -name 'exit_*' \) | while read filename; do
 		f="${filename##*/hosts_}"
 		cat ${filename} >> ${prefix}/final/${f}
 	done

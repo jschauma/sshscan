@@ -1,3 +1,8 @@
+Version 3.1.6 (2011-05-22)
+ * save a fork by obliterating a UUOC
+ * collect unclean exit status files in the generic aggregator
+ * check if scanslaves are alive before chunking
+
 Version 3.1.5 (2011-03-01)
  * display time it took and number of hosts scanned
 

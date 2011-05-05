@@ -74,6 +74,25 @@ PREFIX=""
 ### Subroutines
 ###
 
+# function : checkWorkerHosts
+# purpose  : make sure that the entries in the WHOSTS file appear to be up
+#            and running
+# inputs   : none
+# returns  : nothing; creates a local worker hosts file and sets the
+#            WHOSTS variable to point to that
+
+checkWorkerHosts() {
+	local whosts="${PREFIX}/.whosts"
+	rm -f ${whosts} >/dev/null 2>&1
+	for h in $(sed -e 's/#.*//' ${WHOSTS}); do
+		ping -c 1 -i 1 -t 3 -q ${h} >/dev/null 2>&1 && {
+			echo "${h}" >> ${whosts}
+		}
+	done
+	export WHOSTS="${whosts}"
+}
+
+
 # function : farmOutJobs
 # purpose  : set up a screenrc on each of our worker hosts, then invoke it
 #            note: user needs to detach from each host's screen session
@@ -196,6 +215,7 @@ prescanTasks() {
 
 	date > ${PREFIX}/started
 
+	checkWorkerHosts
 	NUM_HOSTS=$(wc -l <${WHOSTS})
 }
 

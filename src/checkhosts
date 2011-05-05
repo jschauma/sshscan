@@ -177,7 +177,7 @@ checkhost () {
 
 		host_output=$(${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${rcmd}")
 	else
-		host_output=$(cat ${SCRIPT} | ${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${remote_shell}")
+		host_output=$(${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${remote_shell}" < ${SCRIPT})
 	fi
 
 	rval=$?
