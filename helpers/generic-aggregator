@@ -5,12 +5,13 @@
 # Originally written by Jan Schaumann <jans@yahoo-inc.com> in July 2007.
 #
 # This script aggregates the data from a full scan into a directory under
-# the webservers docroot.  It takes two arguments, the one-word name of
-# the scan and the original input file.
+# the webservers docroot.  It takes three arguments, the one-word name of
+# the scan, original input file and a 'start' file.
 
 name=${1}
 input=${2}
-date=${3}
+startfile=${3}
+date=$(date +%Y%m%d)
 suffix=$(echo ${input} | sed -e "s|.*/${name}-||")
 prefix=${BASEDIR:-/mnt/scanmaster}/chunked/${name}
 outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
@@ -20,12 +21,14 @@ outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
 	mkdir -p ${prefix}/final
 	cp ${input} ${prefix}/final/input
 
+	dirs=$(find ${prefix}/* -type d -maxdepth 0 -newer ${startfile})
+
 	# mutli-line output in 'output', hostnames etc. in 'ok'
-	find ${prefix}/${date}* -name hosts_ok -exec cat {} \; | tee ${prefix}/final/output | grep , | sort -u > ${prefix}/final/ok
+	find ${dirs} -name hosts_ok -exec cat {} \; | tee ${prefix}/final/output | grep , | sort -u > ${prefix}/final/ok
 
 	# cat */*/*/hosts_checked  might be too many files for the shell,
 	# so find(1) them instead.
-	find ${prefix}/${date}* \( ! -name 'hosts_ok' -and -name 'hosts_*' -or -name 'exit_*' \) | while read filename; do
+	find ${dirs} \( ! -name 'hosts_ok' -and -name 'hosts_*' -or -name 'exit_*' \) | while read filename; do
 		f="${filename##*/hosts_}"
 		cat ${filename} >> ${prefix}/final/${f}
 	done

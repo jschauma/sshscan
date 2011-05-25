@@ -1,3 +1,7 @@
+Version 3.2.0 (2011-05-29)
+ * don't use dates as names used to identify directories to aggregate;
+   look at mtime in comparison to the scans start time instead
+
 Version 3.1.6 (2011-05-22)
  * save a fork by obliterating a UUOC
  * collect unclean exit status files in the generic aggregator

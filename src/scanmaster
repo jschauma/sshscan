@@ -137,7 +137,7 @@ finishTasks() {
 	date > ${PREFIX}/ended
 
 	if [ -n "${AGGREGATOR}" ]; then
-		${AGGREGATOR} ${NAME} ${INPUT} ${DATE}
+		${AGGREGATOR} ${NAME} ${INPUT} ${PREFIX}/started
 	fi
 	echo "Done."
 }
