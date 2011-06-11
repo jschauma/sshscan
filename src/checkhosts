@@ -72,7 +72,7 @@ HOSTNAMES_ONLY='no'
 # outputs  : help message
 
 usage () {
-	eat <<EOF
+	cat <<EOF
 Usage: ${0##*/} [-HIPSbh] [-A authmode] [-o dir] [-r script] -f file
   -A         Specify ssh authentication mode.
   -H         Do not use a headless account.
