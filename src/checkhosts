@@ -190,7 +190,8 @@ checkhost () {
 		outfile="${OUTFILE_EXITCODE}_${rval}"
 	fi
 
-	echo "${host},${ip},${host_output}" | tr '' '\n' >> ${outfile}
+	echo "${host},${ip},${host_output}" | tr '
+' '\n' >> ${outfile}
 }
 
 # function : process_input_files
