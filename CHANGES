@@ -1,3 +1,8 @@
+Version 3.3.0 (2012-02-03)
+ * allow checkhosts(1) to read hosts from stdin or on the command-line
+ * allow checkhosts(1) to print noping,nossh,nosshd info to stderr instead
+   of into separate files
+
 Version 3.2.1 (2011-06-11)
  * fix tyop noted by blysik@ in
    https://github.com/jschauma/scanmaster/pull/2

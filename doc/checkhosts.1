@@ -1,6 +1,6 @@
 .\"	This manual page was originally written by Jan Schaumann
 .\"	<jschauma@yahoo-inc.com> in February 2007.
-.Dd January 28, 2011
+.Dd February 03, 2012
 .Dt CHECKHOSTS 1
 .Os
 .Sh NAME
@@ -8,11 +8,12 @@
 .Nd scan a list of hosts and run a given script on them
 .Sh SYNOPSIS
 .Nm
-.Op Fl HIPSbh
+.Op Fl HIPSbeh
 .Op Fl A Ar authmode
 .Op Fl o Ar dir
 .Op Fl r Ar script
-.Fl f Ar file
+.Op Fl f Ar file
+.Op Ar hostname Oo Ar ... Oc
 .Sh DESCRIPTION
 For every host in the input, the
 .Nm
@@ -70,6 +71,12 @@ This slightly changes the default behaviour and should normally only be
 set by the invoking
 .Xr scanhosts 1
 script.
+.It Fl e
+Print errors relating to host reachability to stderr.
+That is, instead of sorting hosts that don't ping, don't listen on port 22
+or cannot be reached into different output files, simply report them on
+stderr.
+(Hosts that were successfully processed will then not be reported at all.)
 .It Fl f Ar file
 Read the list of hosts from
 .Ar file .
@@ -116,15 +123,34 @@ output in any files readable by anybody else.
 .Sh INPUT
 Input can be provided via the
 .Fl f Ar file
-flag.
+flag, as arguments the command-line or from stdin.
 Multiple
 .Fl f Ar filename
 are allowed.
+.Pp
+Hostnames or IP addresses provided as arguments on the command-line are
+processed first.
+Next,
+.Nm
+will process all input files.
+If (and only if!) no input files are provided and no arguments were given
+on the command-line,
+.Nm
+will read lines to process from stdin.
+.Pp
 The input format of the file is two fields per line, the first field being
 the hostname, the second the IP address of the host.
 Lines starting with a # are treated as comments and ignored.
+.Pp
+If no files are given, then
+.Nm
+will read input lines from stdin.
+.Pp
+
 .Sh OUTPUT
-Output is generated into the following distinct files:
+Unless the
+.Fl e
+flag is given, output will be generated into the following distinct files:
 .Bl -tag -width hosts_checked
 .It hosts_checked
 The list of hosts that
