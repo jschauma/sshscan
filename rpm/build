@@ -4,15 +4,16 @@
 set -e
 
 name=${1:?"Usage: build <toolname>"}
-sourcedir=$(rpm --showrc | awk '/sourcedir/ { print $NF }')
-rpmdir="$(rpm --showrc | awk '/^rpmdir/ { print $NF }')/noarch"
+topdir=$(rpm --eval "%{_topdir}")
+sourcedir=${topdir}/SOURCES
+rpmdir="${topdir}/RPMS/noarch"
 version=$(awk '/define version/ { print $NF }' ${name}.spec)
 tdir=${TMPDIR:-/tmp}/${name}-${version}
 mkdir -p ${tdir}
 echo "=> Copying sources..."
-( cd .. && pax -rw . ${tdir}/ )
+( cd .. && tar cf - . | tar xf - -C ${tdir}/ )
 echo "=> Creating source tarball under ${sourcedir}..."
 ( cd ${tdir}/.. && tar zcf ${sourcedir}/${name}-${version}.tar.gz ${name}-${version} )
 echo "=> Building RPM..."
-rpm --quiet --buildarch noarch --clean -bb ${name}.spec
+rpmbuild --quiet --clean -bb ${name}.spec
 echo "=> RPM built: ${rpmdir}/$(ls -rt ${rpmdir} | tail -1)"

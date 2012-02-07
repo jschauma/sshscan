@@ -1,8 +1,9 @@
 %define name		scanmaster
 %define release		1
 %define version 	3.3.0
-%define mybuilddir	%{builddir}/%{name}-%{version}-root
+%define mybuilddir	%{_builddir}/%{name}-%{version}-root
 
+BuildArch:		noarch
 BuildRoot:		%{mybuilddir}
 Summary:		the scanmaster suite of scripts
 License: 		BSD
@@ -22,7 +23,7 @@ It works best if the scans can take advantage of a set of scanslave nodes
 with access to shared NFS space, though that is not a hard requirement.
 
 This is an admittedly poor RPM. Fixes and corrections would be most
-welcome.  Please contact jschauma@netmeister.org.
+welcome.
 
 %prep
 %setup -q
