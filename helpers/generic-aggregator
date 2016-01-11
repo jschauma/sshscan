@@ -1,5 +1,7 @@
 #!/bin/sh
 #
+# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/helpers/generic-aggregator
+#
 # Copyright (c) 2008 Yahoo! Inc.
 #
 # Originally written by Jan Schaumann <jans@yahoo-inc.com> in July 2007.
@@ -12,8 +14,8 @@ name=${1}
 input=${2}
 startfile=${3}
 date=$(date +%Y%m%d)
-suffix=$(echo ${input} | sed -e "s|.*/${name}-||")
-prefix=${BASEDIR:-/mnt/scanmaster}/chunked/${name}
+suffix=$(echo ${input} | sed -e "s|.*/||" -e "s|${name}-*||")
+prefix=${BASEDIR:-/mnt/scanmaster}/${USER}/chunked/${name}
 outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
 
 (
@@ -21,14 +23,14 @@ outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
 	mkdir -p ${prefix}/final
 	cp ${input} ${prefix}/final/input
 
-	dirs=$(find ${prefix}/* -type d -maxdepth 0 -newer ${startfile})
+	dirs=$(find ${prefix}/* -maxdepth 0 \( ! -name final -and -type d \) -newer ${startfile})
 
 	# mutli-line output in 'output', hostnames etc. in 'ok'
 	find ${dirs} -name hosts_ok -exec cat {} \; | tee ${prefix}/final/output | grep , | sort -u > ${prefix}/final/ok
 
 	# cat */*/*/hosts_checked  might be too many files for the shell,
 	# so find(1) them instead.
-	find ${dirs} \( ! -name 'hosts_ok' -and -name 'hosts_*' -or -name 'exit_*' \) | while read filename; do
+	for filename in $(find ${dirs} \( ! -name 'hosts_ok' -and -name 'hosts_*' -or -name 'exit_*' \)); do
 		f="${filename##*/hosts_}"
 		cat ${filename} >> ${prefix}/final/${f}
 	done
@@ -43,6 +45,7 @@ outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
 	chmod -R a+rX,g+rw ${outdir}
 
 	mkdir -p ${prefix}/.old/${date}
+	rm -rf ${prefix}/.old/${date}/*
 	mv ${prefix}/* ${prefix}/.old/${date}/
 )
 
@@ -52,8 +55,8 @@ host=$(hostname)
 echo "Sending mail..."
 
 /usr/sbin/sendmail -t <<EOM
-To: ${USER}
-From: ${USER}
+To: ${USER}@yahoo-inc.com
+From: ${USER}@yahoo-inc.com
 Subject: scanhosts ${name} results from ${date}
 
 ${outdir}

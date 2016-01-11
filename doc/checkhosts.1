@@ -1,6 +1,8 @@
+.\" https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/doc/checkhosts.1
+.\"
 .\"	This manual page was originally written by Jan Schaumann
 .\"	<jschauma@yahoo-inc.com> in February 2007.
-.Dd February 03, 2012
+.Dd December 04, 2015
 .Dt CHECKHOSTS 1
 .Os
 .Sh NAME
@@ -199,7 +201,11 @@ via a wrapper named ".checkhosts-ssh" in the output directory to ensure
 that its connections can easily be distinguished from normal ssh
 connections.
 .Pp
-The use of the
+On systems where the
+.Xr timeout 1
+utility is found, ssh connections taking longer than
+30 seconds are automatically terminated.
+On other platforms, the use of the
 .Xr tkill 1
 utility is recommended to periodically prune any possibly hung ssh
 processes.
@@ -253,6 +259,7 @@ keys different from the defaults.
 .Sh SEE ALSO
 .Xr scanhosts 1 ,
 .Xr sigsh 1 ,
+.Xr timeout 1
 .Xr tkill 1
 .Sh HISTORY
 The
@@ -264,4 +271,6 @@ in January 2007.
 It's original task was to check hosts if they were able to deal with the new
 Daylight Saving Time instituted in the USA in 2007.
 .Sh BUGS
-Please reports bugs or feature requests to the author.
+Please file bugs and feature requests via Jira under
+\'Security Architecture\' (PSECARCH), Component
+\'scanmaster\'.

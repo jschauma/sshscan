@@ -1,9 +1,10 @@
 #!/bin/sh
 #
-# Copyright (c) 2007,2008,2009,2010,2011 Yahoo! Inc.
-# All rights reserved.
+# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/src/scanmaster
 #
-# Originally written by Jan Schaumann <jschauma@yahoo-inc.com> in March 2007.
+# Copyright (c) 2007-2015 Yahoo! Inc.
+#
+# Originally written by Jan Schaumann <jans@yahoo-inc.com> in March 2007.
 #
 # Redistribution and use of this software in source and binary forms,
 # with or without modification, are permitted provided that the following
@@ -35,6 +36,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+#
 # This script is part of the "scanmaster" suite of scripts.  It is the
 # primary invoking command and hence named the same.  It represents the
 # portion of the process that farms a scan job out to a number of scanning
@@ -52,7 +54,6 @@ AGGREGATOR=""
 AUTHMODE="pubkey"
 STARTDATE=$(date +%s)
 FULLDATE=$(date +%Y%m%d%H%M)
-DATE=$(date +%Y%m%d)
 DIR="/mnt/scanmaster"
 INPUT=""
 JOBS=""
@@ -92,7 +93,6 @@ checkWorkerHosts() {
 	export WHOSTS="${whosts}"
 }
 
-
 # function : farmOutJobs
 # purpose  : set up a screenrc on each of our worker hosts, then invoke it
 #            note: user needs to detach from each host's screen session
@@ -121,6 +121,7 @@ farmOutJobs() {
 		host=$( echo ${count}p | ed -s ${WHOSTS})
 		chunkfile="${PREFIX}/input/${FULLDATE}/${file}"
 		cmd="${scanslave} ${NAME} ${chunkfile} ${PASSTHROUGH} && rm -f ${goners}"
+		echo "Job:${file} submitted to host: ${host}"
 		ssh ${host} "echo \"screen sh -c \\\"${cmd}\\\"\" > ~/.screenrc.scanslave"
 		ssh -t ${host} "env ${SCAN_ENV} screen ${detach} -c ~/.screenrc.scanslave -e^Ww && sleep 1"
 		count=$(( ${count} + 1 ))
@@ -155,7 +156,7 @@ prepChunks() {
 	local chunkdir="${PREFIX}/input/${FULLDATE}"
 
 	if [ ${NUM_HOSTS} -lt 2 ]; then
-		echo "Need more than ${num_in} hosts.  Bailing out..." >&2
+		echo "Need more than ${NUM_HOSTS} hosts.  Bailing out..." >&2
 		exit
 	fi
 
@@ -208,7 +209,7 @@ prescanTasks() {
 		fi
 	done
 
-	PREFIX="${DIR}/chunked/${NAME}"
+	PREFIX="${DIR}/${USER}/chunked/${NAME}"
 
 	rm -fr ${PREFIX}/*
 	mkdir -p ${PREFIX}/input/${FULLDATE} || exit 1
@@ -221,7 +222,7 @@ prescanTasks() {
 
 # function : status
 # purpose  : print out the names of the slaves still working
-# inputs   : none; called when SIGINFO is received
+# inputs   : none; called when signalled
 # returns  : nothing; prints to stdout the hostnames of all slaves still
 #            working
 
@@ -265,6 +266,7 @@ waitForAll() {
 	local count diff minutes num_in now seconds time
 
 	while [ 1 ]; do
+		status
 		count=$(find ${PREFIX}/* -maxdepth 2 -name '.done' -print 2>/dev/null | wc -l)
 		time=$(date +%T)
 		echo -n ${time}: ${count} /${NUM_HOSTS} done
@@ -273,7 +275,7 @@ waitForAll() {
 			break
 		fi
 		echo " - waiting..."
-		# sleep in intervals to give SIGINFO a chance to be caught
+		# sleep in intervals to give signals a chance to be caught
 		for n in 1 2 3 4 5 6; do
 			sleep 10
 		done
@@ -295,7 +297,11 @@ waitForAll() {
 ### Main
 ###
 
-trap status INFO
+if trap -l | grep -q INFO ; then
+	trap status INFO
+fi
+
+trap status USR1
 
 while getopts 'A:Ha:c:d:hi:j:n:p:r:w:' opt; do
         case ${opt} in

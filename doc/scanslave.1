@@ -1,6 +1,9 @@
+.\"	$Id: scanslave.1 66 2011-01-28 21:59:41Z jans $
+.\"	$URL: svn+ssh://svn.corp.yahoo.com/yahoo/tools/scanmaster/scanner/trunk/doc/scanslave.1 $
+.\"
 .\"	This manual page was originally written by Jan Schaumann
-.\"	<jschauma@yahoo-inc.com> in May 2009.
-.Dd January 28, 2011
+.\"	<jans@yahoo-inc.com> in May 2009.
+.Dd December 04, 2015
 .Dt SCANSLAVE 1
 .Os
 .Sh NAME
@@ -97,8 +100,6 @@ and invokes
 .Xr ssh-add 1 ,
 passing the value of the environment variable SSH_ADD_FLAGS.
 Next, it creates the output directories in the preferably shared location,
-adds a crontab entry for
-.Xr tkill 1
 and eventually kicks off
 .Xr scanhosts 1
 via
@@ -142,14 +143,15 @@ If not specified, defaults to "/tmp".
 .Xr checkhosts 1 ,
 .Xr scanhosts 1 ,
 .Xr ssh-agent 1 ,
-.Xr ssh-add 1 ,
-.Xr tkill 1
+.Xr ssh-add 1
 .Sh HISTORY
 The
 .Nm
 utility was originally written by
 .An Jan Schaumann
-.Aq jschauma@yahoo-inc.com
+.Aq jans@yahoo-inc.com
 in July 2007 as "cmd.chunk".
 .Sh BUGS
-Please report bugs and feature requests to the author.
+Please file bugs and feature requests via Jira under
+\'Security Architecture\' (PSECARCH), Component
+\'scanmaster\'.

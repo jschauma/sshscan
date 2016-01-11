@@ -1,9 +1,10 @@
 #! /bin/sh
 #
-# Copyright (c) 2008,2009,2010,2011 Yahoo! Inc.
-# All rights reserved.
+# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/src/scanslave
 #
-# Originally written by Jan Schaumann <jschauma@yahoo-inc.com> in July 2007.
+# Copyright (c) 2007-2015 Yahoo! Inc.
+#
+# Originally written by Jan Schaumann <jans@yahoo-inc.com> in July 2007.
 #
 # Redistribution and use of this software in source and binary forms,
 # with or without modification, are permitted provided that the following
@@ -69,14 +70,8 @@ PREFIX=""
 # inputs   : none
 
 postScan() {
-	local tmpct=$(mktemp ${TDIR}/cr.$$.XXXX)
-
 	date > ${OUTDIR}/.done
 	rm ${OUTDIR}/.slave
-
-	crontab -l | sed -e "/tkill -C '.checkhosts-s/d" >${tmpct}
-	crontab ${tmpct}
-	rm ${tmpct}
 
 	if [ -n "${SSH_AGENT_PID}" ]; then
 		kill "${SSH_AGENT_PID}"
@@ -89,18 +84,10 @@ postScan() {
 # inputs   : none
 
 preScan() {
-	local tmpct=$(mktemp ${TDIR}/cr.$$.XXXX)
-
 	OUTDIR="${PREFIX}/${SCAN}/${DATE}.${CHUNKFILE##*/}"
 
 	mkdir -p ${OUTDIR} || exit 1
 	hostname > ${OUTDIR}/.slave
-
-	crontab -l >${tmpct}
-	echo "* * * * * tkill -C '.checkhosts-ssh' -t 60" >> ${tmpct}
-	echo "* * * * * tkill -C '.checkhosts-scp' -t 60" >> ${tmpct}
-	crontab ${tmpct}
-	rm ${tmpct}
 
 	if [ x"${NO_HEADLESS_FLAG}" = x"-H" ] && [ x"${AUTHMODE}" != x"password" ]; then
 		eval $(ssh-agent)
@@ -189,7 +176,7 @@ if [ x"${1}" = x"--" ]; then
 	shift
 fi
 
-PREFIX="${DIR}/chunked"
+PREFIX="${DIR}/${USER}/chunked"
 
 preScan
 

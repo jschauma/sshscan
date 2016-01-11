@@ -1,7 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2007,2008,2009,2010,2011 Yahoo! Inc.
-# All rights reserved.
+# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/src/checkhosts
 #
 # Originally written by Jan Schaumann <jschauma@yahoo-inc.com> in January 2007.
 #
@@ -35,7 +34,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-#
 # This script takes as input a list of hosts and tries to ssh to them.
 # It generates as output a file containing the list of hosts that did not ping
 # in one file, a list of hosts that do not appear to be listening on port 22
@@ -51,17 +49,18 @@ TDIR="${TMPDIR:-/tmp}"
 AUTHMODE="pubkey"
 BACKGROUND='no'
 HEADLESS='yes'
-INPUT_ARGS=
 INPUT_FILES=
+INPUT_ARGS=
 OUTPUT_DIR=${TDIR}
 SCRIPT="remote.sh"
 SSH_WRAPPER=".checkhosts-ssh"
 SCP_WRAPPER=".checkhosts-scp"
+SSHOPTS="-l scanserf -i /home/${USER}/.ssh/scanserf"
+TIMEOUT=""
 
 CHECK_PING='yes'
 CHECK_SSHD='yes'
 HOSTNAMES_ONLY='no'
-WANT_ERRORS=
 
 ###
 ### Subroutines
@@ -74,7 +73,7 @@ WANT_ERRORS=
 # outputs  : help message
 
 usage() {
-	cat <<EOF
+	eat <<EOF
 Usage: ${0##*/} [-HIPSbh] [-A authmode] [-o dir] [-r script] -f file
   -A         Specify ssh authentication mode.
   -H         Do not use a headless account.
@@ -106,7 +105,7 @@ checkhost() {
 	local ip="${1##* }"
 	local target="${ip}"
 
-	local host_output substr rval
+	local host_output rval
 	local outfile=${OUTFILE_OK}
 
 	local readonly remotefile="${TDIR}/scanhosts.${USER}.$$"
@@ -155,7 +154,7 @@ checkhost() {
 	fi
 
 	if [ "${CHECK_PING}" = "yes" ]; then
-		ping -c 1 -i 1 -t 3 -q ${target} >/dev/null 2>&1 || {
+		ping -c 1 -i 1 -W 3 -q ${target} >/dev/null 2>&1 || {
 			if [ -z "${WANT_ERRORS}" ]; then
 				echo ${input} >> ${OUTFILE_NOPING}
 			else
@@ -180,7 +179,7 @@ checkhost() {
 
 	if [ "${BACKGROUND}" = "no" ] && [ "${HEADLESS}" = "no" ]; then
 
-		${SCP_WRAPPER} ${sshopts} ${SSHOPTS} ${SCRIPT} ${target}:${remotefile}
+		${TIMEOUT} ${SCP_WRAPPER} ${sshopts} ${SSHOPTS} ${SCRIPT} ${target}:${remotefile}
 		if [ $? -gt 0 ]; then
 			if [ -z "${WANT_ERRORS}" ]; then
 				echo ${input} >> ${OUTFILE_NOSSH}
@@ -191,9 +190,9 @@ checkhost() {
 			# NOTREACHED
 		fi
 
-		host_output=$(${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${rcmd} 2>/dev/null")
+		host_output=$(${TIMEOUT} ${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${rcmd} 2>/dev/null")
 	else
-		host_output=$(${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${remote_shell}" < ${SCRIPT} 2>/dev/null)
+		host_output=$(${TIMEOUT} ${SSH_WRAPPER} ${sshopts} ${SSHOPTS} ${target} "${remote_shell}" < ${SCRIPT} 2>/dev/null)
 	fi
 
 	rval=$?
@@ -216,12 +215,13 @@ checkhost() {
 }
 
 # function : process_input
-# purpose  : work of the lines in all input files, arguments or stdin
-# usage    : process_input_files
+# purpose  : work of the lines in all input files, arguments, or stdin
+# usage    : process_input
 # inputs   : none, operates on global INPUT_FILES
 # outputs  : none
 
 process_input() {
+
 	local file line
 
 	# items given as arguments first...
@@ -257,8 +257,6 @@ process_input() {
 			checkhost "${line}"
 		done
 	fi
-
-
 }
 
 # function : check_sshd
@@ -275,7 +273,7 @@ check_sshd() {
 	( echo | nc $host 22 | grep -i ssh >${tmpfile}; ) &
 	pid=$!
 	i=0
-	while [ ${i} -lt 60 ]; do
+	while [ ${i} -lt 20 ]; do
 		kill -0 ${pid} >/dev/null 2>&1
 		if [ $? -ne 0 ]; then
 			break
@@ -322,6 +320,8 @@ wrap_ssh() {
 ###
 
 main() {
+	local timeout
+
 	while getopts 'A:HIPSbef:ho:r:' opt; do
 		case ${opt} in
 			A)
@@ -379,6 +379,11 @@ main() {
 		echo "Unable to read script \"${SCRIPT}\"." >&2
 		exit 1
 		# NOTREACHED
+	fi
+
+	timeout="$(which timeout)"
+	if [ -n "${timeout}" ]; then
+		TIMEOUT="${timeout} -s KILL 30"
 	fi
 
 	OUTFILE_CHECKED="${OUTPUT_DIR}/hosts_checked"

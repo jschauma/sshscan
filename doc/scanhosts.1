@@ -1,6 +1,9 @@
+.\"	$Id: scanhosts.1 44 2010-12-13 02:34:19Z jans $
+.\"	$URL: svn+ssh://svn.corp.yahoo.com/yahoo/tools/scanmaster/scanner/trunk/doc/scanhosts.1 $
+.\"
 .\"	This manual page was originally written by Jan Schaumann
-.\"	<jschauma@yahoo-inc.com> in February 2007.
-.Dd December 11, 2010
+.\"	<jans@yahoo-inc.com> in February 2007.
+.Dd November 24, 2015
 .Dt SCANHOSTS 1
 .Os
 .Sh NAME
@@ -85,6 +88,9 @@ Split the input into this many files and thus run
 instances of
 .Xr checkhosts 1
 in parallel.
+If not specified,
+.Nm
+will split input into files based on the input size.
 .It Fl o Ar dir
 Put the output files into
 .Ar dir .
@@ -112,9 +118,8 @@ instance will generate output.
 The following examples illustrate common usage of this tool.
 .Pp
 This runs the scans without checking if a host pings, reads input from the
-file /tmp/input, splits the input into files of 20 lines each and puts the
-output into the directory ./output/20070227 under the current working
-directory:
+file /tmp/input, splits the input into 20 files and puts the output into
+the directory ./output/20070227 under the current working directory:
 .Pp
 .Bd -literal -offset indent
 $ autopw scanhosts -P -n 20 -f /tmp/input -o ./output/20070227 \\
@@ -132,9 +137,11 @@ The
 .Nm
 utility was originally written by
 .An Jan Schaumann
-.Aq jschauma@yahoo-inc.com
+.Aq jans@yahoo-inc.com
 in January 2007.
 It's original task was to check hosts if they were able to deal with the new
 Daylight Saving Time instituted in the USA in 2007.
 .Sh BUGS
-Please reports bugs or feature requests to the author.
+Please file bugs and feature requests via Jira under
+\'Security Architecture\' (PSECARCH), Component
+\'scanmaster\'.

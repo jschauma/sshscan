@@ -1,5 +1,7 @@
 #! /bin/sh
 #
+# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/helpers/generic-post
+#
 # Copyright (c) 2007 Yahoo! Inc.
 #
 # Originally written by Jan Schaumann <jans@yahoo-inc.com> in February 2009.
