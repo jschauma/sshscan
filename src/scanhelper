@@ -1,7 +1,5 @@
 #! /bin/sh
 #
-# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/src/scanslave
-#
 # Copyright (c) 2007-2015 Yahoo! Inc.
 #
 # Originally written by Jan Schaumann <jans@yahoo-inc.com> in July 2007.
@@ -36,19 +34,19 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# This script is part of the "scanmaster" suite of scripts.  It represents
+# This script is part of the "sshscan" suite of scripts.  It represents
 # the portion of the process that runs on each scanning node and invokes
 # the scanhosts command.  It takes as input the name of a scan and the
 # so-called chunkfile containing the subset of hosts this scanning node
 # should work on.
 #
-# See scanslave(1) for details.
+# See scanhelper(1) for details.
 
 #set -eu
 
 AUTHMODE="pubkey"
 NUM=175
-DIR="/mnt/scanmaster"
+DIR="/mnt/sshscan"
 NO_HEADLESS_FLAG=""
 PROGNAME="${0##*/}"
 POST="./post.chunk.sh"
@@ -71,7 +69,7 @@ PREFIX=""
 
 postScan() {
 	date > ${OUTDIR}/.done
-	rm ${OUTDIR}/.slave
+	rm ${OUTDIR}/.helper
 
 	if [ -n "${SSH_AGENT_PID}" ]; then
 		kill "${SSH_AGENT_PID}"
@@ -87,7 +85,7 @@ preScan() {
 	OUTDIR="${PREFIX}/${SCAN}/${DATE}.${CHUNKFILE##*/}"
 
 	mkdir -p ${OUTDIR} || exit 1
-	hostname > ${OUTDIR}/.slave
+	hostname > ${OUTDIR}/.helper
 
 	if [ x"${NO_HEADLESS_FLAG}" = x"-H" ] && [ x"${AUTHMODE}" != x"password" ]; then
 		eval $(ssh-agent)

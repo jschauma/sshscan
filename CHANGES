@@ -1,3 +1,6 @@
+Version 4.0 (2020-06-11)
+ * eradicate master/slave terminology, be reborn as 'sshscan'
+
 Version 3.3.0 (2012-02-03)
  * allow checkhosts(1) to read hosts from stdin or on the command-line
  * allow checkhosts(1) to print noping,nossh,nosshd info to stderr instead

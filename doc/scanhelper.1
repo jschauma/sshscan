@@ -1,13 +1,10 @@
-.\"	$Id: scanslave.1 66 2011-01-28 21:59:41Z jans $
-.\"	$URL: svn+ssh://svn.corp.yahoo.com/yahoo/tools/scanmaster/scanner/trunk/doc/scanslave.1 $
-.\"
 .\"	This manual page was originally written by Jan Schaumann
 .\"	<jans@yahoo-inc.com> in May 2009.
-.Dd December 04, 2015
-.Dt SCANSLAVE 1
+.Dd June 11, 2020
+.Dt SCANHELPER 1
 .Os
 .Sh NAME
-.Nm scanslave
+.Nm scanhelper
 .Nd invoke scanhosts on a scanning node
 .Sh SYNOPSIS
 .Nm
@@ -23,7 +20,7 @@
 .Sh DESCRIPTION
 The
 .Nm
-utility is part of the "scanmaster" suite of scripts.
+utility is part of the "sshscan" suite of scripts.
 It represents the portion of the process that runs on each scanning node
 and invokes
 .Xr scanhosts 1 .
@@ -48,7 +45,7 @@ should create all output.
 Preferably this is on an NFS share amongst all scanning nodes, though this
 is not a technical requirement (it just makes postprocessing of the scan
 results an order of magnitude easier).
-If not specified, defaults to "/mnt/scanmaster".
+If not specified, defaults to "/mnt/sshscan".
 .It Fl n Ar N
 The number of jobs
 .Xr scanhosts 1
@@ -114,7 +111,7 @@ To run a scan named "scan1", reading a list of hosts to scan from the file
 directory to be executed and the script "../post.chunk.sh" used as a
 per-chunk post script:
 .Bd -literal -offset indent
-scanslave -r ./remote.sh -p ../post.chunk.sh \\
+scanhelper -r ./remote.sh -p ../post.chunk.sh \\
 	scan1 /tmp/input.list
 .Ed
 .Pp
@@ -123,7 +120,7 @@ To run the same scan but pass the flags "-I" and "-S" to
 (which is useful when connecting to hosts that are reached via a tunnel,
 such as vault hosts):
 .Bd -literal -offset indent
-scanslave -r ./remote.sh -p ../post.chunk.sh \\
+scanhelper -r ./remote.sh -p ../post.chunk.sh \\
 	scan1 /tmp/input.list -- -I -S
 .Ed
 .Sh ENVIRONMENT
@@ -151,7 +148,3 @@ utility was originally written by
 .An Jan Schaumann
 .Aq jans@yahoo-inc.com
 in July 2007 as "cmd.chunk".
-.Sh BUGS
-Please file bugs and feature requests via Jira under
-\'Security Architecture\' (PSECARCH), Component
-\'scanmaster\'.

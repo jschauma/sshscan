@@ -1,7 +1,5 @@
 #!/bin/sh
 #
-# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/helpers/generic-aggregator
-#
 # Copyright (c) 2008 Yahoo! Inc.
 #
 # Originally written by Jan Schaumann <jans@yahoo-inc.com> in July 2007.
@@ -15,8 +13,8 @@ input=${2}
 startfile=${3}
 date=$(date +%Y%m%d)
 suffix=$(echo ${input} | sed -e "s|.*/||" -e "s|${name}-*||")
-prefix=${BASEDIR:-/mnt/scanmaster}/${USER}/chunked/${name}
-outdir=${BASEDIR:-/mnt/scanmaster}/${USER}/${name}-not-yet/${date}/${suffix}
+prefix=${BASEDIR:-/mnt/sshscan}/${USER}/chunked/${name}
+outdir=${BASEDIR:-/mnt/sshscan}/${USER}/${name}-not-yet/${date}/${suffix}
 
 (
 	echo "Aggregating data..."

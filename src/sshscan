@@ -1,7 +1,5 @@
 #!/bin/sh
 #
-# https://git.corp.yahoo.com/paranoids/scanmaster/blob/master/scanmaster/src/scanmaster
-#
 # Copyright (c) 2007-2015 Yahoo! Inc.
 #
 # Originally written by Jan Schaumann <jans@yahoo-inc.com> in March 2007.
@@ -37,12 +35,12 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 #
-# This script is part of the "scanmaster" suite of scripts.  It is the
+# This script is part of the "sshscan" suite of scripts.  It is the
 # primary invoking command and hence named the same.  It represents the
 # portion of the process that farms a scan job out to a number of scanning
 # nodes.
 #
-# See scanmaster(1) for details.
+# See sshscan(1) for details.
 
 #set -eu
 
@@ -54,7 +52,7 @@ AGGREGATOR=""
 AUTHMODE="pubkey"
 STARTDATE=$(date +%s)
 FULLDATE=$(date +%Y%m%d%H%M)
-DIR="/mnt/scanmaster"
+DIR="/mnt/sshscan"
 INPUT=""
 JOBS=""
 NAME=""
@@ -66,7 +64,7 @@ POSTFILE=""
 PROGNAME="${0##*/}"
 PRE=""
 REMOTE_SCRIPT=""
-WHOSTS="/usr/local/share/scanmaster/slavenodes"
+WHOSTS="/usr/local/share/sshscan/helpernodes"
 
 # set in prescanTasks
 PREFIX=""
@@ -101,8 +99,8 @@ checkWorkerHosts() {
 farmOutJobs() {
 	local count=1
 
-	local goners="${HOME}/.screenrc.scanslave"
-	local scanslave="scanslave -A ${AUTHMODE} ${NO_HEADLESS_FLAG} -d ${DIR} -r ${REMOTE_SCRIPT} ${POST} ${JOBS}"
+	local goners="${HOME}/.screenrc.scanhelper"
+	local scanhelper="scanhelper -A ${AUTHMODE} ${NO_HEADLESS_FLAG} -d ${DIR} -r ${REMOTE_SCRIPT} ${POST} ${JOBS}"
 	local cmd detach host file chunkfile
 
 	if [ x"${NO_HEADLESS_FLAG}" = x"-H" ]; then
@@ -120,10 +118,10 @@ farmOutJobs() {
 		fi
 		host=$( echo ${count}p | ed -s ${WHOSTS})
 		chunkfile="${PREFIX}/input/${FULLDATE}/${file}"
-		cmd="${scanslave} ${NAME} ${chunkfile} ${PASSTHROUGH} && rm -f ${goners}"
+		cmd="${scanhelper} ${NAME} ${chunkfile} ${PASSTHROUGH} && rm -f ${goners}"
 		echo "Job:${file} submitted to host: ${host}"
-		ssh ${host} "echo \"screen sh -c \\\"${cmd}\\\"\" > ~/.screenrc.scanslave"
-		ssh -t ${host} "env ${SCAN_ENV} screen ${detach} -c ~/.screenrc.scanslave -e^Ww && sleep 1"
+		ssh ${host} "echo \"screen sh -c \\\"${cmd}\\\"\" > ~/.screenrc.scanhelper"
+		ssh -t ${host} "env ${SCAN_ENV} screen ${detach} -c ~/.screenrc.scanhelper -e^Ww && sleep 1"
 		count=$(( ${count} + 1 ))
 	done
 }
@@ -221,13 +219,13 @@ prescanTasks() {
 }
 
 # function : status
-# purpose  : print out the names of the slaves still working
+# purpose  : print out the names of the helpers still working
 # inputs   : none; called when signalled
-# returns  : nothing; prints to stdout the hostnames of all slaves still
+# returns  : nothing; prints to stdout the hostnames of all helpers still
 #            working
 
 status() {
-	find ${PREFIX}/* -maxdepth 2 -name '.slave' -exec cat {} \; 2>/dev/null
+	find ${PREFIX}/* -maxdepth 2 -name '.helper' -exec cat {} \; 2>/dev/null
 }
 
 
@@ -239,7 +237,7 @@ usage() {
 	cat <<EOH
 Usage: ${PROGNAME} [-Hh] [-A authmode] [-a aggregator] [-c post-chunk] [-d dir]
                    [-j jobs] [-p pre] [-w workers] -i input -n name -r remote
-                   [-- scanslave-passthrough-args]
+                   [-- scanhelper-passthrough-args]
        -A authmode    specify ssh authentication mode
        -H             do not use the headless user for ssh connections
        -a aggregator  specify a script to aggregate all results
@@ -247,7 +245,7 @@ Usage: ${PROGNAME} [-Hh] [-A authmode] [-a aggregator] [-c post-chunk] [-d dir]
        -h             print this message and exit
        -i input       specify the file containing the hostlist
        -j jobs        specify the number of jobs scanhosts(1) should run
-                      (passed on to scanslave(1))
+                      (passed on to scanhelper(1))
        -n name        specify the name of this scan
        -w workers     specify a file containing a list of worker hosts
        -p pre         specify a script to run before doing anything else
